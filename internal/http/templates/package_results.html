@@ -1,3 +1,4 @@
+{{/* DUAL-SOURCE: each package row here is mirrored procedurally by renderSearchResultsMarkdown / renderUntaggedMarkdown in markdown.go. If you change what fields render or how packages are linked, update those too. */}}
 {{define "package-results"}}
 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10">
 {{range .Packages}}

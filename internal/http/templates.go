@@ -160,6 +160,9 @@ func parse(files ...string) *template.Template {
 func render(w http.ResponseWriter, r *http.Request, tmpl *template.Template, name string, data any) {
 	if m, ok := data.(map[string]any); ok {
 		m["Path"] = r.URL.Path
+		if mdURL := markdownURLFromContext(r.Context()); mdURL != "" {
+			m["MarkdownURL"] = mdURL
+		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {

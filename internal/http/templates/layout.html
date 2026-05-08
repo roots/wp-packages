@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="alternate" type="application/atom+xml" title="WP Packages — Recently Updated Packages" href="/feed.xml">
+{{if .MarkdownURL}}<link rel="alternate" type="text/markdown" href="{{.MarkdownURL}}">{{end}}
 {{template "og_meta" .}}
 {{template "json_ld" .}}
 <link rel="preload" href="/assets/styles/fonts/public-sans-latin.woff2" as="font" type="font/woff2" crossorigin>

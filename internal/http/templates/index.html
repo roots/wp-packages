@@ -1,3 +1,4 @@
+{{/* DUAL-SOURCE: this template renders two surfaces. Hero/intro/stats are mirrored by templates/markdown/home.md (served as the Markdown rep of `/` with no query). Package list is partial templates/package_results.html — its Markdown form is procedural in renderSearchResultsMarkdown (markdown.go), served as the Markdown rep of `/?search=...` etc. */}}
 {{template "layout" .}}
 {{define "title"}}WP Packages — WordPress Packages for Composer | WPackagist Alternative{{end}}
 {{define "meta_seo"}}
