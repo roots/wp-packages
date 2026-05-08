@@ -1,8 +1,7 @@
 (function () {
   'use strict';
 
-  function copyCmd(el, txt) {
-    navigator.clipboard.writeText(txt);
+  function showCopiedSwap(el) {
     const svg = el.querySelector('button svg') || el.querySelector('svg:last-of-type') || el.querySelector('svg');
     if (!svg || svg.dataset.copied) return;
     svg.dataset.copied = '1';
@@ -24,6 +23,21 @@
         delete svg.dataset.copied;
       }, 150);
     }, 1500);
+  }
+
+  function copyCmd(el, txt) {
+    navigator.clipboard.writeText(txt);
+    showCopiedSwap(el);
+  }
+
+  function copyMarkdown(el, url) {
+    fetch(url, { headers: { Accept: 'text/markdown' } })
+      .then((r) => (r.ok ? r.text() : Promise.reject(r.status)))
+      .then((txt) => {
+        navigator.clipboard.writeText(txt);
+        showCopiedSwap(el);
+      })
+      .catch(() => {});
   }
 
   function openTagRequest(pluginName) {
@@ -86,6 +100,7 @@
   document.addEventListener('click', (e) => {
     let t;
     if ((t = e.target.closest('[data-copy]'))) { copyCmd(t, t.dataset.copy); return; }
+    if ((t = e.target.closest('[data-copy-md]'))) { copyMarkdown(t, t.dataset.copyMd); return; }
     if ((t = e.target.closest('[data-tag-request]'))) { openTagRequest(t.dataset.tagRequest); return; }
     if ((t = e.target.closest('[data-copy-install]'))) { copyInstall(t, t.dataset.copyInstall); return; }
     if ((t = e.target.closest('[data-sort]'))) { toggleSort(t.dataset.sort, t.dataset.sortDefault); return; }
