@@ -178,6 +178,52 @@ func TestStatusRecorder_ForwardsFlusher(t *testing.T) {
 	flusher.Flush()
 }
 
+func TestRouter_LegacyRedirect_MarkdownClient(t *testing.T) {
+	// MD-only clients hitting a legacy redirect path should get a 301
+	// to the canonical Markdown URL, not a 406.
+	a := newTestApp(t)
+	handler := NewRouter(a)
+
+	cases := []struct {
+		path     string
+		location string
+	}{
+		{"/wp-composer-vs-wpackagist", "/wp-packages-vs-wpackagist.md"},
+		{"/roots-wordpress", "/wordpress-core.md"},
+	}
+	for _, c := range cases {
+		req := httptest.NewRequest("GET", c.path, nil)
+		req.Header.Set("Accept", "text/markdown")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusMovedPermanently {
+			t.Errorf("%s: status %d, want 301", c.path, w.Code)
+		}
+		if loc := w.Header().Get("Location"); loc != c.location {
+			t.Errorf("%s: Location %q, want %q", c.path, loc, c.location)
+		}
+	}
+}
+
+func TestRouter_LegacyRedirect_DotMd(t *testing.T) {
+	// /wp-composer-vs-wpackagist.md should also redirect, since the
+	// middleware strips .md and dispatches into the MD mux.
+	a := newTestApp(t)
+	handler := NewRouter(a)
+
+	req := httptest.NewRequest("GET", "/wp-composer-vs-wpackagist.md", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusMovedPermanently {
+		t.Errorf("status %d, want 301", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/wp-packages-vs-wpackagist.md" {
+		t.Errorf("Location %q, want /wp-packages-vs-wpackagist.md", loc)
+	}
+}
+
 func TestRouter_SitemapPackagesRoutes(t *testing.T) {
 	a := newTestApp(t)
 	handler := NewRouter(a)

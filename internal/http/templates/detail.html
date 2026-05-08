@@ -1,3 +1,4 @@
+{{/* DUAL-SOURCE: mirrored procedurally by renderDetailMarkdown in markdown.go (served as the Markdown rep of `/packages/wp-{type}/{name}`). Adding a field here means updating that renderer too. */}}
 {{template "layout" .}}
 {{define "title"}}{{if .Package.DisplayName}}{{.Package.DisplayName}}{{else}}{{.Package.Name}}{{end}} — WP Packages{{end}}
 {{define "meta_seo"}}

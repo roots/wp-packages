@@ -146,6 +146,7 @@ func NewRouter(a *app.App) http.Handler {
 
 	// Build handler chain
 	handler := appHandler(mux, tmpl, a, sitemapPackagesHandler)
+	handler = withNegotiation(a, handler)
 	handler = timeoutBypass(handler, 60*time.Second)
 	handler = Recoverer(handler, a.Logger)
 	handler = sentryMiddleware.Handle(handler)
