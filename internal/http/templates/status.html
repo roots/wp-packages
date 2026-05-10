@@ -90,8 +90,7 @@
 {{range .Changes}}
 <tr>
 <td class="pl-6 pr-2 py-0.5"><span class="inline-block px-2 py-0.5 rounded-full {{if eq .Action "delete"}}bg-red-100 text-red-700{{else}}bg-blue-100 text-blue-700{{end}}">{{if eq .Action "delete"}}deleted{{else}}updated{{end}}</span></td>
-<td class="pr-2 py-0.5">{{if eq .Action "delete"}}<span class="font-mono text-gray-700">{{.PackageName}}</span>{{else}}<a href="/packages/{{.PackageName}}" class="font-mono text-gray-700 hover:text-blue-600 hover:underline">{{.PackageName}}</a>{{end}}</td>
-<td class="pr-6 py-0.5">{{if eq .Action "delete"}}<a href="{{wporgURL .PackageName}}" class="text-gray-400 hover:text-blue-600 hover:underline" rel="nofollow">View on WordPress.org</a>{{end}}</td>
+<td class="pr-6 py-0.5">{{if eq .Action "delete"}}<a href="{{wporgURL .PackageName}}" class="font-mono text-gray-700 hover:text-blue-600 hover:underline" target="_blank" rel="nofollow noopener">{{.PackageName}}</a>{{else}}<a href="/packages/{{.PackageName}}" class="font-mono text-gray-700 hover:text-blue-600 hover:underline">{{.PackageName}}</a>{{end}}</td>
 </tr>
 {{end}}
 </table>
@@ -144,8 +143,7 @@
 {{range .Changes}}
 <tr>
 <td class="pl-6 pr-2 py-0.5"><span class="inline-block px-2 py-0.5 rounded-full {{if eq .Action "tombstoned"}}bg-black text-white{{else if eq .Action "deactivated"}}bg-red-100 text-red-700{{else}}bg-green-100 text-green-700{{end}}">{{.Action}}</span></td>
-<td class="pr-2 py-0.5">{{if eq .Action "reactivated"}}<a href="/packages/wp-{{.PackageType}}/{{.PackageName}}" class="font-mono text-gray-700 hover:text-blue-600 hover:underline">wp-{{.PackageType}}/{{.PackageName}}</a>{{else}}<span class="font-mono text-gray-700">wp-{{.PackageType}}/{{.PackageName}}</span>{{end}}</td>
-<td class="pr-6 py-0.5">{{if ne .Action "reactivated"}}<a href="{{wporgURL (print "wp-" .PackageType "/" .PackageName)}}" class="text-gray-400 hover:text-blue-600 hover:underline" rel="nofollow">View on WordPress.org</a>{{end}}</td>
+<td class="pr-6 py-0.5">{{if eq .Action "reactivated"}}<a href="/packages/wp-{{.PackageType}}/{{.PackageName}}" class="font-mono text-gray-700 hover:text-blue-600 hover:underline">wp-{{.PackageType}}/{{.PackageName}}</a>{{else}}<a href="{{wporgURL (print "wp-" .PackageType "/" .PackageName)}}" class="font-mono text-gray-700 hover:text-blue-600 hover:underline" target="_blank" rel="nofollow noopener">wp-{{.PackageType}}/{{.PackageName}}</a>{{end}}</td>
 </tr>
 {{end}}
 </table>

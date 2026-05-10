@@ -2,7 +2,7 @@
 
 # WP Packages — WordPress Packages for Composer
 
-Composer repository for WordPress plugins and themes. A 17x faster, fully open-source alternative to WPackagist that updates every 5 minutes.
+Composer repository for WordPress.org plugins and themes. A 17x faster, fully open-source alternative to WPackagist that updates every 5 minutes.
 
 ## Add the repository
 
