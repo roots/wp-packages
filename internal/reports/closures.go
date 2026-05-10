@@ -27,13 +27,31 @@ type closure struct {
 	Time   time.Time
 }
 
+// sqlExecutor is the subset of *sql.DB / *sql.Tx that this package needs,
+// so the same helpers can run inside or outside a transaction.
+type sqlExecutor interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
 // TrackMassClosures scans for new mass-closure events in the last 24h and
 // records or updates them in the closure_events table.
+//
+// Wrapped in a transaction so a partial run rolls back cleanly. A residual
+// SELECT-then-INSERT race exists if two runs execute concurrently — in
+// practice prevented by the hourly cron + busy_timeout.
 func TrackMassClosures(ctx context.Context, db *sql.DB) error {
 	now := time.Now().UTC()
 	windowStart := now.Add(-24 * time.Hour)
 
-	closures, err := loadRecentClosures(ctx, db, windowStart)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	closures, err := loadRecentClosures(ctx, tx, windowStart)
 	if err != nil {
 		return err
 	}
@@ -55,7 +73,7 @@ func TrackMassClosures(ctx context.Context, db *sql.DB) error {
 		// the window has reset and we create a new event.
 		var eventID int64
 		var existingSlugsJSON string
-		err := db.QueryRowContext(ctx, `
+		err := tx.QueryRowContext(ctx, `
 			SELECT id, plugin_slugs FROM closure_events
 			WHERE vendor_slug = ? AND detected_at >= ?
 			ORDER BY detected_at DESC LIMIT 1`,
@@ -78,7 +96,7 @@ func TrackMassClosures(ctx context.Context, db *sql.DB) error {
 			sort.Strings(sortedSlugs)
 			slugsJSON, _ := json.Marshal(sortedSlugs)
 
-			_, err = db.ExecContext(ctx, `
+			_, err = tx.ExecContext(ctx, `
 				INSERT INTO closure_events (
 					vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count
 				) VALUES (?, ?, ?, ?, ?)`,
@@ -104,7 +122,7 @@ func TrackMassClosures(ctx context.Context, db *sql.DB) error {
 			sort.Strings(sortedSlugs)
 			slugsJSON, _ := json.Marshal(sortedSlugs)
 
-			_, err = db.ExecContext(ctx, `
+			_, err = tx.ExecContext(ctx, `
 				UPDATE closure_events SET plugin_slugs = ?, plugin_count = ?
 				WHERE id = ?`,
 				string(slugsJSON), len(sortedSlugs), eventID)
@@ -114,10 +132,13 @@ func TrackMassClosures(ctx context.Context, db *sql.DB) error {
 		}
 	}
 
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
 	return nil
 }
 
-func loadRecentClosures(ctx context.Context, db *sql.DB, since time.Time) ([]closure, error) {
+func loadRecentClosures(ctx context.Context, db sqlExecutor, since time.Time) ([]closure, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT scc.package_name, COALESCE(p.author, ''), scc.created_at
 		FROM status_check_changes scc

@@ -123,7 +123,7 @@ func GetClosureEvents(ctx context.Context, db *sql.DB, page, perPage int) ([]Clo
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count
 		FROM closure_events
-		ORDER BY detected_at DESC
+		ORDER BY detected_at DESC, id DESC
 		LIMIT ? OFFSET ?`, perPage, (page-1)*perPage)
 	if err != nil {
 		return nil, 0, err
@@ -146,7 +146,7 @@ func GetVendorClosureEvents(ctx context.Context, db *sql.DB, vendorSlug string) 
 		SELECT id, vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count
 		FROM closure_events
 		WHERE vendor_slug = ?
-		ORDER BY detected_at DESC`, vendorSlug)
+		ORDER BY detected_at DESC, id DESC`, vendorSlug)
 	if err != nil {
 		return nil, err
 	}

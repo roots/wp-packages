@@ -223,7 +223,7 @@ func handleClosuresFeed(a *app.App) http.HandlerFunc {
 			})
 		}
 
-		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+		w.Header().Set("Content-Type", "application/rss+xml; charset=utf-8")
 		_, _ = w.Write([]byte(xml.Header))
 		_ = xml.NewEncoder(w).Encode(feed)
 	}
