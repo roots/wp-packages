@@ -111,8 +111,9 @@ func handleAPIVendorClosures(a *app.App) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "public, max-age=3600")
 		if len(events) == 0 {
+			// Don't cache 404s: a vendor's first-ever event would otherwise
+			// be hidden by a stale CDN-cached 404 for up to the TTL window.
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"error":             "vendor not found",
@@ -121,6 +122,7 @@ func handleAPIVendorClosures(a *app.App) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"events":            formatEvents(events),
 			"documentation_url": a.Config.AppURL + "/docs#api-vendor-closures",
@@ -245,6 +247,13 @@ func handleClosuresFeed(a *app.App) http.HandlerFunc {
 }
 
 func renderClosuresRSS(appURL string, events []packages.ClosureEvent) []byte {
+	// Anchor lastBuildDate to the most recent event so polling readers
+	// don't see the channel "update" each cache regeneration when no
+	// new events were recorded. Falls back to now when the feed is empty.
+	lastBuild := time.Now()
+	if len(events) > 0 {
+		lastBuild = events[0].DetectedAt
+	}
 	feed := rssFeed{
 		Version: "2.0",
 		AtomNS:  "http://www.w3.org/2005/Atom",
@@ -258,7 +267,7 @@ func renderClosuresRSS(appURL string, events []packages.ClosureEvent) []byte {
 			},
 			Description:   "Recent mass-closure events on WordPress.org",
 			Language:      "en-us",
-			LastBuildDate: time.Now().Format(time.RFC1123Z),
+			LastBuildDate: lastBuild.Format(time.RFC1123Z),
 		},
 	}
 	for _, e := range events {
