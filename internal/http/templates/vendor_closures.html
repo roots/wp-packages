@@ -1,0 +1,77 @@
+{{template "layout" .}}
+{{define "title"}}{{.VendorName}} Mass Closures — WP Packages{{end}}
+{{define "meta_seo"}}
+<meta name="description" content="Mass-closure history for WordPress.org vendor {{.VendorName}}.">
+{{if .AppURL}}<link rel="canonical" href="{{.AppURL}}/closures/{{(index .Events 0).VendorSlug}}">{{end}}
+{{end}}
+{{define "json_ld"}}{{end}}
+{{define "og_meta"}}
+<meta property="og:title" content="{{.VendorName}} Mass Closures — WP Packages">
+<meta property="og:description" content="Mass-closure history for WordPress.org vendor {{.VendorName}}.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+{{end}}
+{{define "content"}}
+<div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
+<nav class="mb-4" aria-label="Breadcrumb">
+<ol role="list" class="flex items-center space-x-2 text-sm text-gray-500">
+<li><a href="/closures" class="hover:text-brand-primary transition-colors">Mass Closure History</a></li>
+<li class="flex items-center space-x-2">
+<svg class="h-4 w-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+<span class="text-gray-900 font-medium">{{.VendorName}}</span>
+</li>
+</ol>
+</nav>
+<h1 class="text-4xl font-bold tracking-tight text-gray-900 mb-4">{{.VendorName}}</h1>
+<p class="text-gray-500 mb-4 max-w-2xl">
+Vendor mass-closure outbreaks detected on WordPress.org.
+</p>
+<div class="flex flex-wrap gap-2 mb-10">
+<button type="button" data-copy-md="/closures/{{(index .Events 0).VendorSlug}}.md" aria-label="Copy this page as Markdown" class="inline-flex items-center gap-1.5 rounded-md border border-gray-200/80 bg-gray-50/50 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg>
+<span>Copy as Markdown</span>
+</button>
+<button type="button" data-copy-json="/api/closures/{{(index .Events 0).VendorSlug}}" aria-label="Copy this page as JSON" class="inline-flex items-center gap-1.5 rounded-md border border-gray-200/80 bg-gray-50/50 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg>
+<span>Copy as JSON</span>
+</button>
+</div>
+
+<div class="space-y-10">
+{{$statuses := .Statuses}}
+{{range .Events}}
+<section>
+<h3 class="text-lg font-semibold text-gray-900 mb-1">{{.PluginCount}} plugins closed</h3>
+<p class="text-sm text-gray-500 mb-3" title="{{.DetectedAt.Format "2006-01-02T15:04:05Z"}}">Detected on {{formatCST (.DetectedAt.Format "2006-01-02T15:04:05Z")}}</p>
+<div class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+<table class="w-full text-sm">
+<thead class="bg-gray-50 text-left">
+<tr>
+<th class="px-4 py-2 font-medium">Plugin</th>
+<th class="px-4 py-2 font-medium">Plugin Slug</th>
+<th class="px-4 py-2 font-medium">Current Status</th>
+</tr>
+</thead>
+<tbody>
+{{range .PluginSlugs}}
+{{$s := index $statuses .}}
+<tr class="border-t border-gray-100 hover:bg-gray-50">
+<td class="p-0"><a href="https://wordpress.org/plugins/{{.}}/" target="_blank" rel="noopener" class="block px-4 py-2 text-gray-900 hover:text-brand-primary hover:underline">{{if and $s $s.DisplayName}}{{$s.DisplayName}}{{else}}{{.}}{{end}}</a></td>
+<td class="px-4 py-2 font-mono text-xs text-gray-700">{{.}}</td>
+<td class="px-4 py-2">
+{{if $s}}
+{{if $s.IsActive}}<span class="text-xs lowercase bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
+{{else if $s.IsClosed}}<span class="text-xs lowercase bg-black text-white px-2 py-0.5 rounded-full">Tombstoned</span>
+{{else}}<span class="text-xs lowercase bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Closed</span>{{end}}
+{{else}}<span class="text-xs lowercase bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Unknown</span>{{end}}
+</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+</section>
+{{end}}
+</div>
+</div>
+{{end}}

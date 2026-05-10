@@ -270,6 +270,56 @@
 ]</code></pre>
 </div>
 
+<h3 id="api-closures" class="text-lg font-bold mb-3">GET /api/closures</h3>
+<p class="text-gray-600 mb-3">Returns a paginated list of mass-closure events detected in rolling 24-hour windows.</p>
+<div class="flex items-center gap-3 rounded-xl border border-gray-200/60 bg-gray-100/30 px-4 py-2.5 cursor-pointer hover:border-gray-300 transition-colors mb-3" data-copy="curl https://wp-packages.org/api/closures">
+<span class="text-gray-500 text-sm font-mono select-none shrink-0">$</span>
+<code class="flex-1 text-sm font-mono text-gray-900 truncate">curl https://wp-packages.org/api/closures</code>
+<button aria-label="Copy to clipboard" class="shrink-0 text-gray-400 hover:text-gray-900 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+</div>
+<div class="rounded-xl border border-gray-200/60 overflow-hidden mb-8">
+<div class="bg-gray-50/50 px-4 py-2 text-xs text-gray-500 border-b border-gray-200/40">Response</div>
+<pre class="p-4 text-sm font-mono leading-relaxed overflow-x-auto"><code>{
+  <span class="text-green-700">"events"</span>: [
+    {
+      <span class="text-green-700">"id"</span>: <span class="text-blue-700">42</span>,
+      <span class="text-green-700">"vendor_name"</span>: <span class="text-green-700">"WPFactory"</span>,
+      <span class="text-green-700">"vendor_slug"</span>: <span class="text-green-700">"wpfactory"</span>,
+      <span class="text-green-700">"detected_at"</span>: <span class="text-green-700">"2026-04-27T13:03:45Z"</span>,
+      <span class="text-green-700">"detected_at_formatted"</span>: <span class="text-green-700">"April 27, 2026"</span>,
+      <span class="text-green-700">"plugin_slugs"</span>: [<span class="text-green-700">"plugin-a"</span>, <span class="text-green-700">"plugin-b"</span>],
+      <span class="text-green-700">"plugin_count"</span>: <span class="text-blue-700">2</span>
+    }
+  ],
+  <span class="text-green-700">"documentation_url"</span>: <span class="text-green-700">"https://wp-packages.org/docs#api-closures"</span>
+}</code></pre>
+</div>
+
+<h3 id="api-vendor-closures" class="text-lg font-bold mb-3">GET /api/closures/{vendor_slug}</h3>
+<p class="text-gray-600 mb-3">Returns all historical mass-closure events for a specific vendor.</p>
+<div class="flex items-center gap-3 rounded-xl border border-gray-200/60 bg-gray-100/30 px-4 py-2.5 cursor-pointer hover:border-gray-300 transition-colors mb-3" data-copy="curl https://wp-packages.org/api/closures/wpfactory">
+<span class="text-gray-500 text-sm font-mono select-none shrink-0">$</span>
+<code class="flex-1 text-sm font-mono text-gray-900 truncate">curl https://wp-packages.org/api/closures/wpfactory</code>
+<button aria-label="Copy to clipboard" class="shrink-0 text-gray-400 hover:text-gray-900 transition-colors"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg></button>
+</div>
+<div class="rounded-xl border border-gray-200/60 overflow-hidden mb-8">
+<div class="bg-gray-50/50 px-4 py-2 text-xs text-gray-500 border-b border-gray-200/40">Response</div>
+<pre class="p-4 text-sm font-mono leading-relaxed overflow-x-auto"><code>{
+  <span class="text-green-700">"events"</span>: [
+    {
+      <span class="text-green-700">"id"</span>: <span class="text-blue-700">42</span>,
+      <span class="text-green-700">"vendor_name"</span>: <span class="text-green-700">"WPFactory"</span>,
+      <span class="text-green-700">"vendor_slug"</span>: <span class="text-green-700">"wpfactory"</span>,
+      <span class="text-green-700">"detected_at"</span>: <span class="text-green-700">"2026-04-27T13:03:45Z"</span>,
+      <span class="text-green-700">"detected_at_formatted"</span>: <span class="text-green-700">"April 27, 2026"</span>,
+      <span class="text-green-700">"plugin_slugs"</span>: [<span class="text-green-700">"plugin-a"</span>, <span class="text-green-700">"plugin-b"</span>],
+      <span class="text-green-700">"plugin_count"</span>: <span class="text-blue-700">2</span>
+    }
+  ],
+  <span class="text-green-700">"documentation_url"</span>: <span class="text-green-700">"https://wp-packages.org/docs#api-vendor-closures"</span>
+}</code></pre>
+</div>
+
 <p class="text-sm text-gray-500 mb-12">Stats responses are cached for 5 minutes; the closed-packages list is cached for 1 hour. Returns <code class="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200/40">404</code> for inactive or unknown packages, and <code class="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200/40">429</code> when rate limited.</p>
 
 <h2 id="badges" class="text-2xl font-bold mb-4 scroll-mt-20">Badges for plugin authors</h2>

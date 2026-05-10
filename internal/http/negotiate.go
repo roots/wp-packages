@@ -68,6 +68,7 @@ var staticExtensions = map[string]struct{}{
 var mdContentParams = map[string][]string{
 	"GET /{$}":      {"search", "type", "sort", "page"},
 	"GET /untagged": {"filter", "search", "author", "sort", "page"},
+	"GET /closures": {"page"},
 }
 
 // extractContentQuery returns the URL-encoded subset of rawQuery that

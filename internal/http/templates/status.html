@@ -106,7 +106,7 @@
 </div>
 
 <div id="panel-checks" class="hidden" role="tabpanel" aria-labelledby="tab-checks">
-<p class="text-sm text-gray-500 mb-4">Hourly re-check of all packages against WordPress.org to detect closures and re-openings.</p>
+<p class="text-sm text-gray-500 mb-4">Hourly re-check of all packages against WordPress.org to detect closures and re-openings. View <a href="/closures" class="text-brand-primary hover:underline font-medium">Mass-Closure History</a>.</p>
 {{if not .StatusChecks}}
 <p class="text-gray-500 text-sm">No status checks have run yet.</p>
 {{else}}
@@ -143,9 +143,9 @@
 <table class="text-xs">
 {{range .Changes}}
 <tr>
-<td class="pl-6 pr-2 py-0.5"><span class="inline-block px-2 py-0.5 rounded-full {{if eq .Action "deactivated"}}bg-red-100 text-red-700{{else}}bg-green-100 text-green-700{{end}}">{{.Action}}</span></td>
-<td class="pr-2 py-0.5">{{if eq .Action "deactivated"}}<span class="font-mono text-gray-700">wp-{{.PackageType}}/{{.PackageName}}</span>{{else}}<a href="/packages/wp-{{.PackageType}}/{{.PackageName}}" class="font-mono text-gray-700 hover:text-blue-600 hover:underline">wp-{{.PackageType}}/{{.PackageName}}</a>{{end}}</td>
-<td class="pr-6 py-0.5">{{if eq .Action "deactivated"}}<a href="{{wporgURL (print "wp-" .PackageType "/" .PackageName)}}" class="text-gray-400 hover:text-blue-600 hover:underline" rel="nofollow">View on WordPress.org</a>{{end}}</td>
+<td class="pl-6 pr-2 py-0.5"><span class="inline-block px-2 py-0.5 rounded-full {{if eq .Action "tombstoned"}}bg-black text-white{{else if eq .Action "deactivated"}}bg-red-100 text-red-700{{else}}bg-green-100 text-green-700{{end}}">{{.Action}}</span></td>
+<td class="pr-2 py-0.5">{{if eq .Action "reactivated"}}<a href="/packages/wp-{{.PackageType}}/{{.PackageName}}" class="font-mono text-gray-700 hover:text-blue-600 hover:underline">wp-{{.PackageType}}/{{.PackageName}}</a>{{else}}<span class="font-mono text-gray-700">wp-{{.PackageType}}/{{.PackageName}}</span>{{end}}</td>
+<td class="pr-6 py-0.5">{{if ne .Action "reactivated"}}<a href="{{wporgURL (print "wp-" .PackageType "/" .PackageName)}}" class="text-gray-400 hover:text-blue-600 hover:underline" rel="nofollow">View on WordPress.org</a>{{end}}</td>
 </tr>
 {{end}}
 </table>

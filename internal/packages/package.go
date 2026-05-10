@@ -98,6 +98,124 @@ func timeStr(t *time.Time) *string {
 	return &s
 }
 
+type ClosureEvent struct {
+	ID          int64     `json:"id"`
+	VendorName  string    `json:"vendor_name"`
+	VendorSlug  string    `json:"vendor_slug"`
+	DetectedAt  time.Time `json:"detected_at"`
+	PluginSlugs []string  `json:"plugin_slugs"`
+	PluginCount int       `json:"plugin_count"`
+}
+
+type ClosurePluginStatus struct {
+	Slug        string `json:"slug"`
+	DisplayName string `json:"display_name,omitempty"`
+	IsActive    bool   `json:"is_active"`
+	IsClosed    bool   `json:"is_closed"`
+}
+
+func GetClosureEvents(ctx context.Context, db *sql.DB, page, perPage int) ([]ClosureEvent, int, error) {
+	var total int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM closure_events").Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count
+		FROM closure_events
+		ORDER BY detected_at DESC
+		LIMIT ? OFFSET ?`, perPage, (page-1)*perPage)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var events []ClosureEvent
+	for rows.Next() {
+		e, err := scanClosureEvent(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		events = append(events, e)
+	}
+	return events, total, nil
+}
+
+func GetVendorClosureEvents(ctx context.Context, db *sql.DB, vendorSlug string) ([]ClosureEvent, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count
+		FROM closure_events
+		WHERE vendor_slug = ?
+		ORDER BY detected_at DESC`, vendorSlug)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var events []ClosureEvent
+	for rows.Next() {
+		e, err := scanClosureEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, e)
+	}
+	return events, nil
+}
+
+func scanClosureEvent(rows *sql.Rows) (ClosureEvent, error) {
+	var e ClosureEvent
+	var detectedAtStr, slugsJSON string
+	if err := rows.Scan(&e.ID, &e.VendorName, &e.VendorSlug, &detectedAtStr, &slugsJSON, &e.PluginCount); err != nil {
+		return e, err
+	}
+	e.DetectedAt, _ = time.Parse(time.RFC3339, detectedAtStr)
+	if err := json.Unmarshal([]byte(slugsJSON), &e.PluginSlugs); err != nil {
+		return e, fmt.Errorf("closure_events.plugin_slugs (id=%d): %w", e.ID, err)
+	}
+	return e, nil
+}
+
+func GetClosurePluginStatuses(ctx context.Context, db *sql.DB, slugs []string) (map[string]ClosurePluginStatus, error) {
+	if len(slugs) == 0 {
+		return nil, nil
+	}
+
+	placeholders := make([]string, len(slugs))
+	args := make([]any, len(slugs))
+	for i, s := range slugs {
+		placeholders[i] = "?"
+		args[i] = s
+	}
+
+	query := fmt.Sprintf(`
+		SELECT name, COALESCE(display_name, ''), is_active, permanently_closed
+		FROM packages
+		WHERE type = 'plugin' AND name IN (%s)`, strings.Join(placeholders, ","))
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	statuses := make(map[string]ClosurePluginStatus)
+	for rows.Next() {
+		var name, displayName string
+		var isActive, permanentlyClosed bool
+		if err := rows.Scan(&name, &displayName, &isActive, &permanentlyClosed); err != nil {
+			return nil, err
+		}
+		statuses[name] = ClosurePluginStatus{
+			Slug:        name,
+			DisplayName: displayName,
+			IsActive:    isActive,
+			IsClosed:    permanentlyClosed,
+		}
+	}
+	return statuses, nil
+}
+
 // UpsertPackage inserts or updates a package record by (type, name).
 func UpsertPackage(ctx context.Context, db *sql.DB, pkg *Package) error {
 	now := time.Now().UTC().Format(time.RFC3339)

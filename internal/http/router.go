@@ -73,6 +73,7 @@ func NewRouter(a *app.App) http.Handler {
 	}
 
 	routeFunc("GET /feed.xml", handleFeed(a))
+	routeFunc("GET /closures/feed", handleClosuresFeed(a))
 	routeFunc("GET /robots.txt", handleRobotsTxt(a))
 	sitemaps := &sitemapData{}
 	routeFunc("GET /sitemap.xml", handleSitemapIndex(a, sitemaps))
@@ -99,6 +100,8 @@ func NewRouter(a *app.App) http.Handler {
 	})
 	routeFunc("GET /wordpress-core", handleWordpressCore(a, tmpl))
 	routeFunc("GET /status", handleStatus(a, tmpl))
+	routeFunc("GET /closures", handleClosures(a, tmpl))
+	routeFunc("GET /closures/{vendor_slug}", handleVendorClosures(a, tmpl))
 	routeFunc("GET /untagged", handleUntagged(a, tmpl))
 	routeFunc("GET /untagged-partial", handleUntaggedPartial(a, tmpl))
 	routeFunc("GET /untagged-authors", handleUntaggedAuthors(a))
@@ -112,6 +115,8 @@ func NewRouter(a *app.App) http.Handler {
 	route("GET /api/stats/packages/{type}/{name}/total", apiLimiter.RateLimit(http.HandlerFunc(handleAPIPackageTotal(a))))
 	route("GET /api/packages/{type}/closed", apiLimiter.RateLimit(http.HandlerFunc(handleAPIClosedPackages(a, false))))
 	route("GET /api/packages/{type}/closed/permanent", apiLimiter.RateLimit(http.HandlerFunc(handleAPIClosedPackages(a, true))))
+	route("GET /api/closures", apiLimiter.RateLimit(http.HandlerFunc(handleAPIClosures(a))))
+	route("GET /api/closures/{vendor_slug}", apiLimiter.RateLimit(http.HandlerFunc(handleAPIVendorClosures(a))))
 
 	// Serve Composer repository metadata from DB
 	routeFunc("GET /packages.json", handlePackagesJSON(a))

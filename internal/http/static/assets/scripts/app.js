@@ -40,6 +40,18 @@
       .catch(() => {});
   }
 
+  function copyJson(el, url) {
+    fetch(url, { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.text() : Promise.reject(r.status)))
+      .then((txt) => {
+        let pretty = txt;
+        try { pretty = JSON.stringify(JSON.parse(txt), null, 2); } catch (e) {}
+        navigator.clipboard.writeText(pretty);
+        showCopiedSwap(el);
+      })
+      .catch(() => {});
+  }
+
   function openTagRequest(pluginName) {
     const d = document.getElementById('tag-request-dialog');
     if (!d) return;
@@ -101,6 +113,7 @@
     let t;
     if ((t = e.target.closest('[data-copy]'))) { copyCmd(t, t.dataset.copy); return; }
     if ((t = e.target.closest('[data-copy-md]'))) { copyMarkdown(t, t.dataset.copyMd); return; }
+    if ((t = e.target.closest('[data-copy-json]'))) { copyJson(t, t.dataset.copyJson); return; }
     if ((t = e.target.closest('[data-tag-request]'))) { openTagRequest(t.dataset.tagRequest); return; }
     if ((t = e.target.closest('[data-copy-install]'))) { copyInstall(t, t.dataset.copyInstall); return; }
     if ((t = e.target.closest('[data-sort]'))) { toggleSort(t.dataset.sort, t.dataset.sortDefault); return; }

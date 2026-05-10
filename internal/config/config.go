@@ -15,8 +15,7 @@ type Config struct {
 	Debug    bool   `yaml:"debug"`
 	LogLevel string `yaml:"log_level"`
 
-	SentryDSN   string `yaml:"sentry_dsn"`
-	GitHubToken string `yaml:"github_token"`
+	SentryDSN string `yaml:"sentry_dsn"`
 
 	DB         DBConfig         `yaml:"db"`
 	Server     ServerConfig     `yaml:"server"`
@@ -125,9 +124,6 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("SENTRY_DSN"); v != "" {
 		cfg.SentryDSN = v
-	}
-	if v := os.Getenv("GITHUB_TOKEN"); v != "" {
-		cfg.GitHubToken = v
 	}
 	if v := os.Getenv("DB_PATH"); v != "" {
 		cfg.DB.Path = v

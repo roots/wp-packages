@@ -144,10 +144,8 @@ func runCheckStatus(cmd *cobra.Command, args []string) error {
 		"failed", failed.Load(),
 	)
 
-	if gistURL, err := reports.PostClosureReport(ctx, application.DB, runID, started, application.Config.GitHubToken); err != nil {
-		application.Logger.Warn("failed to post closure gist", "error", err)
-	} else if gistURL != "" {
-		application.Logger.Info("posted closure gist", "url", gistURL)
+	if err := reports.TrackMassClosures(ctx, application.DB); err != nil {
+		application.Logger.Warn("failed to track mass closures", "error", err)
 	}
 
 	return runErr

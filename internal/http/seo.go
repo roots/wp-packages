@@ -314,8 +314,33 @@ func generateSitemaps(ctx context.Context, db *sql.DB, appURL string) (index []b
 			{Loc: appURL + "/wordpress-core"},
 			{Loc: appURL + "/wp-packages-vs-wpackagist"},
 			{Loc: appURL + "/untagged"},
+			{Loc: appURL + "/closures"},
 		},
 	}
+
+	closureRows, err := db.QueryContext(ctx,
+		`SELECT vendor_slug, MAX(detected_at) FROM closure_events GROUP BY vendor_slug ORDER BY vendor_slug`)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("querying closures for sitemap: %w", err)
+	}
+	for closureRows.Next() {
+		var slug, detectedAt string
+		if err := closureRows.Scan(&slug, &detectedAt); err != nil {
+			_ = closureRows.Close()
+			return nil, nil, nil, fmt.Errorf("scanning closures sitemap row: %w", err)
+		}
+		u := sitemapURL{Loc: appURL + "/closures/" + slug}
+		if t, err := time.Parse(time.RFC3339, detectedAt); err == nil {
+			u.LastMod = t.Format("2006-01-02")
+		}
+		pagesURLSet.URLs = append(pagesURLSet.URLs, u)
+	}
+	if err := closureRows.Err(); err != nil {
+		_ = closureRows.Close()
+		return nil, nil, nil, err
+	}
+	_ = closureRows.Close()
+
 	pages, err = marshalXML(pagesURLSet)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("marshaling pages sitemap: %w", err)

@@ -156,6 +156,8 @@ func newMarkdownMux(a *app.App) *http.ServeMux {
 	mux.HandleFunc("GET /wordpress-core", handleWordPressCoreMD())
 	mux.HandleFunc("GET /status", handleStatusMD(a))
 	mux.HandleFunc("GET /untagged", handleUntaggedMD(a, appURL))
+	mux.HandleFunc("GET /closures", handleClosuresMD(a, appURL))
+	mux.HandleFunc("GET /closures/{vendor_slug}", handleVendorClosuresMD(a, appURL))
 
 	// Mirror the legacy redirects from router.go so MD-only clients
 	// receive a 301 to the canonical Markdown URL instead of a 406.
@@ -611,5 +613,109 @@ func renderUntaggedMarkdown(pkgs []packageRow, total, totalPlugins int64, page i
 	}
 
 	appendPaginationFooter(&b, page, int(total), untaggedPerPage, "/untagged.md", appURL, rawQuery)
+	return b.String()
+}
+
+func handleClosuresMD(a *app.App, appURL string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		if page < 1 {
+			page = 1
+		}
+		events, total, err := packages.GetClosureEvents(r.Context(), a.DB, page, closuresPerPage)
+		if err != nil {
+			a.Logger.Error("querying closure events for markdown", "error", err)
+			captureError(r, err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		cleanQuery := extractContentQuery("GET /closures", r.URL.RawQuery)
+		setPaginationLinkHeader(w, page, total, closuresPerPage, "/closures.md", appURL, cleanQuery)
+		body := renderClosuresMarkdown(events, total, page, appURL, cleanQuery)
+		writeMarkdown(w, body, "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400")
+	}
+}
+
+func renderClosuresMarkdown(events []packages.ClosureEvent, total, page int, appURL, rawQuery string) string {
+	var b strings.Builder
+	b.WriteString("# WordPress.org Mass Closures\n\n")
+	b.WriteString("History of WordPress.org plugin vendors with multiple closures within a 24-hour rolling window.\n\n")
+	if len(events) == 0 {
+		b.WriteString("_No mass-closure events recorded._\n")
+		return b.String()
+	}
+	tp := totalPages(total, closuresPerPage)
+	fmt.Fprintf(&b, "## Events (page %d of %d)\n\n", page, tp)
+	b.WriteString("| Vendor | Plugins closed | Detected |\n")
+	b.WriteString("| --- | ---: | --- |\n")
+	for _, e := range events {
+		vendorURL := siteURL(appURL, "/closures/"+e.VendorSlug)
+		fmt.Fprintf(&b, "| [%s](%s) | %d | %s |\n",
+			e.VendorName, vendorURL, e.PluginCount, e.DetectedAt.Format("2006-01-02"))
+	}
+	appendPaginationFooter(&b, page, total, closuresPerPage, "/closures.md", appURL, rawQuery)
+	return b.String()
+}
+
+func handleVendorClosuresMD(a *app.App, appURL string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vendorSlug := r.PathValue("vendor_slug")
+		events, err := packages.GetVendorClosureEvents(r.Context(), a.DB, vendorSlug)
+		if err != nil {
+			a.Logger.Error("querying vendor closure events for markdown", "vendor", vendorSlug, "error", err)
+			captureError(r, err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		if len(events) == 0 {
+			http.NotFound(w, r)
+			return
+		}
+
+		var allSlugs []string
+		for _, e := range events {
+			allSlugs = append(allSlugs, e.PluginSlugs...)
+		}
+		statuses, err := packages.GetClosurePluginStatuses(r.Context(), a.DB, allSlugs)
+		if err != nil {
+			a.Logger.Error("querying closure plugin statuses for markdown", "error", err)
+		}
+
+		body := renderVendorClosuresMarkdown(events, statuses, appURL)
+		writeMarkdown(w, body, "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400")
+	}
+}
+
+func renderVendorClosuresMarkdown(events []packages.ClosureEvent, statuses map[string]packages.ClosurePluginStatus, appURL string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s\n\n", events[0].VendorName)
+	b.WriteString("Vendor mass-closure outbreaks detected on WordPress.org.\n\n")
+	for _, e := range events {
+		fmt.Fprintf(&b, "## %d plugins closed — %s\n\n",
+			e.PluginCount, e.DetectedAt.Format("January 2, 2006"))
+		b.WriteString("| Plugin | Plugin Slug | Current Status |\n")
+		b.WriteString("| --- | --- | --- |\n")
+		for _, slug := range e.PluginSlugs {
+			status := "Unknown"
+			name := slug
+			if s, ok := statuses[slug]; ok {
+				if s.DisplayName != "" {
+					name = s.DisplayName
+				}
+				switch {
+				case s.IsActive:
+					status = "Active"
+				case s.IsClosed:
+					status = "Tombstoned"
+				default:
+					status = "Closed"
+				}
+			}
+			fmt.Fprintf(&b, "| [%s](https://wordpress.org/plugins/%s/) | `%s` | %s |\n", name, slug, slug, status)
+		}
+		b.WriteString("\n")
+	}
+	listURL := siteURL(appURL, "/closures")
+	fmt.Fprintf(&b, "[← All mass-closure events](%s)\n", listURL)
 	return b.String()
 }
