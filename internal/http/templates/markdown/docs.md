@@ -245,7 +245,7 @@ curl https://wp-packages.org/api/closures/wpfactory
 }
 ```
 
-Stats responses are cached for 5 minutes; the closed-packages list is cached for 1 hour. Returns `404` for inactive or unknown packages, and `429` when rate limited.
+Stats responses are cached for 5 minutes; the closed-packages and closures endpoints are cached for 1 hour. Returns `404` for inactive or unknown packages, and `429` when rate limited.
 
 ## Badges for plugin authors
 

@@ -168,13 +168,17 @@ func TrackMassClosures(ctx context.Context, db *sql.DB) error {
 }
 
 func loadRecentClosures(ctx context.Context, db sqlExecutor, since time.Time) ([]closure, error) {
+	// ORDER BY scc.id gives groupByVendor a deterministic first-seen
+	// author casing if the same vendor's plugins ever land with different
+	// author capitalizations.
 	rows, err := db.QueryContext(ctx, `
 		SELECT scc.package_name, COALESCE(p.author, '')
 		FROM status_check_changes scc
 		LEFT JOIN packages p ON p.type = scc.package_type AND p.name = scc.package_name
 		WHERE scc.created_at >= ?
 		  AND scc.package_type = 'plugin'
-		  AND scc.action IN ('deactivated','tombstoned')`, since.Format(time.RFC3339))
+		  AND scc.action IN ('deactivated','tombstoned')
+		ORDER BY scc.id`, since.Format(time.RFC3339))
 	if err != nil {
 		return nil, fmt.Errorf("querying closures: %w", err)
 	}

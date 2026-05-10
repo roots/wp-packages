@@ -89,6 +89,7 @@ func handleAPIClosures(a *app.App) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"events":            formatEvents(events),
 			"page":              page,
@@ -110,6 +111,7 @@ func handleAPIVendorClosures(a *app.App) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		if len(events) == 0 {
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]any{
