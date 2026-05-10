@@ -169,14 +169,22 @@ func scanClosureEvent(rows *sql.Rows) (ClosureEvent, error) {
 	if err := rows.Scan(&e.ID, &e.VendorName, &e.VendorSlug, &detectedAtStr, &slugsJSON, &e.PluginCount); err != nil {
 		return e, err
 	}
-	e.DetectedAt, _ = time.Parse(time.RFC3339, detectedAtStr)
+	t, err := time.Parse(time.RFC3339, detectedAtStr)
+	if err != nil {
+		return e, fmt.Errorf("closure_events.detected_at (id=%d): %w", e.ID, err)
+	}
+	e.DetectedAt = t
 	if err := json.Unmarshal([]byte(slugsJSON), &e.PluginSlugs); err != nil {
 		return e, fmt.Errorf("closure_events.plugin_slugs (id=%d): %w", e.ID, err)
 	}
 	return e, nil
 }
 
-func GetClosurePluginStatuses(ctx context.Context, db *sql.DB, slugs []string) (map[string]ClosurePluginStatus, error) {
+// GetClosurePluginStatuses returns a pointer map so missing keys are nil
+// (templates can use {{if $s}} to detect "not in DB"). A value map would
+// return the zero ClosurePluginStatus for missing keys, which Go templates
+// treat as truthy — silently mislabeling unknown slugs as "Closed".
+func GetClosurePluginStatuses(ctx context.Context, db *sql.DB, slugs []string) (map[string]*ClosurePluginStatus, error) {
 	if len(slugs) == 0 {
 		return nil, nil
 	}
@@ -199,14 +207,14 @@ func GetClosurePluginStatuses(ctx context.Context, db *sql.DB, slugs []string) (
 	}
 	defer func() { _ = rows.Close() }()
 
-	statuses := make(map[string]ClosurePluginStatus)
+	statuses := make(map[string]*ClosurePluginStatus)
 	for rows.Next() {
 		var name, displayName string
 		var isActive, permanentlyClosed bool
 		if err := rows.Scan(&name, &displayName, &isActive, &permanentlyClosed); err != nil {
 			return nil, err
 		}
-		statuses[name] = ClosurePluginStatus{
+		statuses[name] = &ClosurePluginStatus{
 			Slug:        name,
 			DisplayName: displayName,
 			IsActive:    isActive,

@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/roots/wp-packages/internal/app"
@@ -108,7 +109,10 @@ func handleAPIVendorClosures(a *app.App) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		if len(events) == 0 {
 			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "vendor not found"})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error":             "vendor not found",
+				"documentation_url": a.Config.AppURL + "/docs#api-vendor-closures",
+			})
 			return
 		}
 
@@ -174,6 +178,20 @@ type rssItem struct {
 	Description string `xml:"description"`
 }
 
+// rssEventDescription returns a scannable summary listing the affected plugin
+// slugs (truncated for readability in feed readers).
+func rssEventDescription(e packages.ClosureEvent) string {
+	const maxSlugs = 10
+	slugs := e.PluginSlugs
+	suffix := ""
+	if len(slugs) > maxSlugs {
+		suffix = ", and " + strconv.Itoa(len(slugs)-maxSlugs) + " more"
+		slugs = slugs[:maxSlugs]
+	}
+	return strconv.Itoa(e.PluginCount) + " plugins from " + e.VendorName +
+		" closed on WordPress.org: " + strings.Join(slugs, ", ") + suffix
+}
+
 func handleClosuresFeed(a *app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		events, _, err := packages.GetClosureEvents(r.Context(), a.DB, 1, closuresPerPage)
@@ -201,7 +219,7 @@ func handleClosuresFeed(a *app.App) http.HandlerFunc {
 				Link:        vendorURL,
 				GUID:        vendorURL + "#" + strconv.FormatInt(e.ID, 10),
 				PubDate:     e.DetectedAt.Format(time.RFC1123Z),
-				Description: "WordPress.org mass-closure event for " + e.VendorName,
+				Description: rssEventDescription(e),
 			})
 		}
 

@@ -686,7 +686,7 @@ func handleVendorClosuresMD(a *app.App, appURL string) http.HandlerFunc {
 	}
 }
 
-func renderVendorClosuresMarkdown(events []packages.ClosureEvent, statuses map[string]packages.ClosurePluginStatus, appURL string) string {
+func renderVendorClosuresMarkdown(events []packages.ClosureEvent, statuses map[string]*packages.ClosurePluginStatus, appURL string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s\n\n", events[0].VendorName)
 	b.WriteString("Vendor mass-closure outbreaks detected on WordPress.org.\n\n")
