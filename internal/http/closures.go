@@ -32,7 +32,7 @@ func handleClosures(a *app.App, tmpl *templateSet) http.HandlerFunc {
 		render(w, r, tmpl.closures, "layout", map[string]any{
 			"AppURL":     a.Config.AppURL,
 			"CDNURL":     a.Config.R2.CDNPublicURL,
-			"OGImage":    ogImageURL(a.Config, "social/default.png"),
+			"OGImage":    ogImageURL(a.Config, "social/closures.png"),
 			"Events":     events,
 			"Page":       page,
 			"PerPage":    closuresPerPage,
@@ -67,7 +67,7 @@ func handleVendorClosures(a *app.App, tmpl *templateSet) http.HandlerFunc {
 		render(w, r, tmpl.vendorClosures, "layout", map[string]any{
 			"AppURL":     a.Config.AppURL,
 			"CDNURL":     a.Config.R2.CDNPublicURL,
-			"OGImage":    ogImageURL(a.Config, "social/default.png"),
+			"OGImage":    ogImageURL(a.Config, "social/closures.png"),
 			"VendorName": events[0].VendorName,
 			"VendorSlug": events[0].VendorSlug,
 			"Events":     events,

@@ -184,7 +184,7 @@ func handleDocs(a *app.App, tmpl *templateSet) http.HandlerFunc {
 		render(w, r, tmpl.docs, "layout", map[string]any{
 			"AppURL":  a.Config.AppURL,
 			"CDNURL":  a.Config.R2.CDNPublicURL,
-			"OGImage": ogImageURL(a.Config, "social/default.png"),
+			"OGImage": ogImageURL(a.Config, "social/docs.png"),
 		})
 	}
 }
@@ -195,7 +195,7 @@ func handleCompare(a *app.App, tmpl *templateSet) http.HandlerFunc {
 		render(w, r, tmpl.compare, "layout", map[string]any{
 			"AppURL":  a.Config.AppURL,
 			"CDNURL":  a.Config.R2.CDNPublicURL,
-			"OGImage": ogImageURL(a.Config, "social/default.png"),
+			"OGImage": ogImageURL(a.Config, "social/compare.png"),
 		})
 	}
 }
@@ -239,7 +239,7 @@ func handleUntagged(a *app.App, tmpl *templateSet) http.HandlerFunc {
 			"TotalPages":   totalPages,
 			"AppURL":       a.Config.AppURL,
 			"CDNURL":       a.Config.R2.CDNPublicURL,
-			"OGImage":      ogImageURL(a.Config, "social/default.png"),
+			"OGImage":      ogImageURL(a.Config, "social/untagged.png"),
 		})
 	}
 }
@@ -330,7 +330,7 @@ func handleWordpressCore(a *app.App, tmpl *templateSet) http.HandlerFunc {
 		render(w, r, tmpl.wordpressCore, "layout", map[string]any{
 			"AppURL":         a.Config.AppURL,
 			"CDNURL":         a.Config.R2.CDNPublicURL,
-			"OGImage":        ogImageURL(a.Config, "social/default.png"),
+			"OGImage":        ogImageURL(a.Config, "social/wordpress-core.png"),
 			"RootsDownloads": a.Packagist.Total(),
 		})
 	}
@@ -1024,7 +1024,7 @@ func handleStatus(a *app.App, tmpl *templateSet) http.HandlerFunc {
 			"Reactivated24h":     reactivated24h,
 			"AppURL":             a.Config.AppURL,
 			"CDNURL":             a.Config.R2.CDNPublicURL,
-			"OGImage":            ogImageURL(a.Config, "social/default.png"),
+			"OGImage":            ogImageURL(a.Config, "social/status.png"),
 		}
 		if len(statusBuilds) > 0 {
 			data["LastBuildStartedAt"] = statusBuilds[0].StartedAt
