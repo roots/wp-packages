@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"html"
 	"regexp"
 	"sort"
 	"strings"
@@ -137,7 +138,7 @@ func loadRecentClosures(ctx context.Context, db *sql.DB, since time.Time) ([]clo
 		if err := rows.Scan(&c.Slug, &c.Author, &createdAtStr); err != nil {
 			return nil, err
 		}
-		c.Author = strings.TrimSpace(htmlTagRE.ReplaceAllString(c.Author, ""))
+		c.Author = strings.TrimSpace(html.UnescapeString(htmlTagRE.ReplaceAllString(c.Author, "")))
 		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
 			c.Time = t
 		}
@@ -167,8 +168,17 @@ func groupByVendor(closures []closure) map[string][]closure {
 	return out
 }
 
+// reservedVendorSlugs collide with sibling routes under /closures/.
+var reservedVendorSlugs = map[string]struct{}{
+	"feed": {},
+}
+
 func slugify(s string) string {
 	s = strings.ToLower(s)
 	s = nonAlphaNumRE.ReplaceAllString(s, "-")
-	return strings.Trim(s, "-")
+	s = strings.Trim(s, "-")
+	if _, reserved := reservedVendorSlugs[s]; reserved {
+		s += "-vendor"
+	}
+	return s
 }

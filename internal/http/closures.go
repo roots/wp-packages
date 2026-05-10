@@ -77,7 +77,7 @@ func handleAPIClosures(a *app.App) http.HandlerFunc {
 			page = 1
 		}
 
-		events, _, err := packages.GetClosureEvents(r.Context(), a.DB, page, closuresPerPage)
+		events, total, err := packages.GetClosureEvents(r.Context(), a.DB, page, closuresPerPage)
 		if err != nil {
 			a.Logger.Error("api: querying closure events", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -87,6 +87,10 @@ func handleAPIClosures(a *app.App) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"events":            formatEvents(events),
+			"page":              page,
+			"per_page":          closuresPerPage,
+			"total":             total,
+			"total_pages":       totalPages(total, closuresPerPage),
 			"documentation_url": a.Config.AppURL + "/docs#api-closures",
 		})
 	}
@@ -101,8 +105,13 @@ func handleAPIVendorClosures(a *app.App) http.HandlerFunc {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-
 		w.Header().Set("Content-Type", "application/json")
+		if len(events) == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "vendor not found"})
+			return
+		}
+
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"events":            formatEvents(events),
 			"documentation_url": a.Config.AppURL + "/docs#api-vendor-closures",

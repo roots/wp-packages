@@ -212,6 +212,10 @@ curl https://wp-packages.org/api/closures
       "plugin_count": 2
     }
   ],
+  "page": 1,
+  "per_page": 50,
+  "total": 6,
+  "total_pages": 1,
   "documentation_url": "https://wp-packages.org/docs#api-closures"
 }
 ```

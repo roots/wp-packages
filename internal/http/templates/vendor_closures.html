@@ -2,7 +2,7 @@
 {{define "title"}}{{.VendorName}} Mass Closures — WP Packages{{end}}
 {{define "meta_seo"}}
 <meta name="description" content="Mass-closure history for WordPress.org vendor {{.VendorName}}.">
-{{if .AppURL}}<link rel="canonical" href="{{.AppURL}}/closures/{{(index .Events 0).VendorSlug}}">{{end}}
+{{if .AppURL}}<link rel="canonical" href="{{.AppURL}}/closures/{{.VendorSlug}}">{{end}}
 {{end}}
 {{define "json_ld"}}{{end}}
 {{define "og_meta"}}
@@ -27,11 +27,11 @@
 Vendor mass-closure outbreaks detected on WordPress.org.
 </p>
 <div class="flex flex-wrap gap-2 mb-10">
-<button type="button" data-copy-md="/closures/{{(index .Events 0).VendorSlug}}.md" aria-label="Copy this page as Markdown" class="inline-flex items-center gap-1.5 rounded-md border border-gray-200/80 bg-gray-50/50 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+<button type="button" data-copy-md="/closures/{{.VendorSlug}}.md" aria-label="Copy this page as Markdown" class="inline-flex items-center gap-1.5 rounded-md border border-gray-200/80 bg-gray-50/50 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg>
 <span>Copy as Markdown</span>
 </button>
-<button type="button" data-copy-json="/api/closures/{{(index .Events 0).VendorSlug}}" aria-label="Copy this page as JSON" class="inline-flex items-center gap-1.5 rounded-md border border-gray-200/80 bg-gray-50/50 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+<button type="button" data-copy-json="/api/closures/{{.VendorSlug}}" aria-label="Copy this page as JSON" class="inline-flex items-center gap-1.5 rounded-md border border-gray-200/80 bg-gray-50/50 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184"/></svg>
 <span>Copy as JSON</span>
 </button>

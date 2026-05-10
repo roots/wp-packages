@@ -1,6 +1,6 @@
 -- +goose Up
 CREATE TABLE closure_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     vendor_name TEXT NOT NULL,
     vendor_slug TEXT NOT NULL,
     detected_at DATETIME NOT NULL,

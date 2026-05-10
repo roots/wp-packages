@@ -37,6 +37,7 @@ var nonNegotiablePrefixes = []string{
 var nonNegotiableExact = map[string]struct{}{
 	"/health":                {},
 	"/feed.xml":              {},
+	"/closures/feed":         {},
 	"/robots.txt":            {},
 	"/sitemap.xml":           {},
 	"/packages.json":         {},

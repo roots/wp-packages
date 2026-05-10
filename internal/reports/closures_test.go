@@ -109,6 +109,68 @@ func TestTrackMassClosures_BelowThreshold_NoEvent(t *testing.T) {
 	}
 }
 
+func TestTrackMassClosures_NewEventAfterWindowResets(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	insertPackageWithAuthor(t, db, "plugin", "alpha", "Acme Inc")
+	insertPackageWithAuthor(t, db, "plugin", "beta", "Acme Inc")
+	insertPackageWithAuthor(t, db, "plugin", "gamma", "Acme Inc")
+	insertPackageWithAuthor(t, db, "plugin", "delta", "Acme Inc")
+
+	// Backdate a prior event's detected_at to >24h ago so the window has reset.
+	old := now.Add(-30 * time.Hour).Format(time.RFC3339)
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO closure_events (vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count)
+		 VALUES (?, ?, ?, ?, ?)`,
+		"Acme Inc", "acme-inc", old, `["alpha","beta"]`, 2)
+	if err != nil {
+		t.Fatalf("seeding old event: %v", err)
+	}
+
+	// Two fresh closures inside the current window — threshold met again.
+	runID := insertStatusCheck(t, db, now)
+	insertChange(t, db, runID, "plugin", "gamma", "deactivated", now)
+	insertChange(t, db, runID, "plugin", "delta", "deactivated", now)
+
+	if err := TrackMassClosures(ctx, db); err != nil {
+		t.Fatalf("TrackMassClosures: %v", err)
+	}
+
+	var count int
+	if err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM closure_events WHERE vendor_slug = ?",
+		"acme-inc").Scan(&count); err != nil {
+		t.Fatalf("counting events: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 events (old + new after reset), got %d", count)
+	}
+
+	// The newly created event should contain only the fresh slugs, not the old ones.
+	var slugsJSON string
+	if err := db.QueryRowContext(ctx,
+		"SELECT plugin_slugs FROM closure_events WHERE vendor_slug = ? ORDER BY detected_at DESC LIMIT 1",
+		"acme-inc").Scan(&slugsJSON); err != nil {
+		t.Fatalf("selecting newest event: %v", err)
+	}
+	var slugs []string
+	if err := json.Unmarshal([]byte(slugsJSON), &slugs); err != nil {
+		t.Fatalf("unmarshaling slugs: %v", err)
+	}
+	gotSlugs := map[string]bool{}
+	for _, s := range slugs {
+		gotSlugs[s] = true
+	}
+	if !gotSlugs["gamma"] || !gotSlugs["delta"] {
+		t.Errorf("new event missing fresh slugs: %v", slugs)
+	}
+	if gotSlugs["alpha"] || gotSlugs["beta"] {
+		t.Errorf("new event should not include old slugs: %v", slugs)
+	}
+}
+
 func TestTrackMassClosures_UpdatesExistingEventInWindow(t *testing.T) {
 	db := testutil.OpenTestDB(t)
 	ctx := context.Background()
