@@ -32,12 +32,11 @@ func TestSlugify(t *testing.T) {
 }
 
 func TestGroupByVendor_StripsHTMLAndIgnoresEmpty(t *testing.T) {
-	now := time.Now()
 	in := []closure{
-		{Slug: "a", Author: "Acme", Time: now},
-		{Slug: "b", Author: "acme", Time: now},
-		{Slug: "c", Author: "", Time: now},
-		{Slug: "d", Author: "Other", Time: now},
+		{Slug: "a", Author: "Acme"},
+		{Slug: "b", Author: "acme"},
+		{Slug: "c", Author: ""},
+		{Slug: "d", Author: "Other"},
 	}
 	got := groupByVendor(in)
 
@@ -170,6 +169,49 @@ func TestTrackMassClosures_NewEventAfterWindowResets(t *testing.T) {
 	}
 	if gotSlugs["alpha"] || gotSlugs["beta"] {
 		t.Errorf("new event should not include old slugs: %v", slugs)
+	}
+}
+
+func TestTrackMassClosures_SkipsOverlapWithPriorEvent(t *testing.T) {
+	// A prior outbreak's slugs can still be inside the rolling 24h window
+	// even after the prior event's detected_at has aged out of cooldown.
+	// Without overlap protection, those source rows would create a
+	// duplicate adjacent event with the same slugs.
+	db := testutil.OpenTestDB(t)
+	ctx := context.Background()
+
+	now := time.Now().UTC()
+	insertPackageWithAuthor(t, db, "plugin", "alpha", "Acme Inc")
+	insertPackageWithAuthor(t, db, "plugin", "beta", "Acme Inc")
+
+	// Prior event: detected 30h ago (cooldown expired).
+	old := now.Add(-30 * time.Hour).Format(time.RFC3339)
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO closure_events (vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count)
+		 VALUES (?, ?, ?, ?, ?)`,
+		"Acme Inc", "acme-inc", old, `["alpha","beta"]`, 2); err != nil {
+		t.Fatalf("seeding prior event: %v", err)
+	}
+
+	// Source change rows for alpha + beta from 12h ago — still inside the
+	// rolling 24h window, but they're the same slugs as the prior event.
+	twelveHoursAgo := now.Add(-12 * time.Hour)
+	runID := insertStatusCheck(t, db, twelveHoursAgo)
+	insertChange(t, db, runID, "plugin", "alpha", "deactivated", twelveHoursAgo)
+	insertChange(t, db, runID, "plugin", "beta", "deactivated", twelveHoursAgo)
+
+	if err := TrackMassClosures(ctx, db); err != nil {
+		t.Fatalf("TrackMassClosures: %v", err)
+	}
+
+	var count int
+	if err := db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM closure_events WHERE vendor_slug = ?",
+		"acme-inc").Scan(&count); err != nil {
+		t.Fatalf("counting events: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 event (no duplicate from overlap), got %d", count)
 	}
 }
 

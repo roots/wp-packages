@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/roots/wp-packages/internal/app"
@@ -206,48 +207,74 @@ func rssEventDescription(e packages.ClosureEvent) string {
 		" closed on WordPress.org: " + strings.Join(slugs, ", ") + suffix
 }
 
-func handleClosuresFeed(a *app.App) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		events, _, err := packages.GetClosureEvents(r.Context(), a.DB, 1, closuresPerPage)
-		if err != nil {
-			a.Logger.Error("querying closure events for feed", "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
+type closuresFeedCache struct {
+	mu          sync.RWMutex
+	data        []byte
+	generatedAt time.Time
+}
 
-		feedURL := a.Config.AppURL + "/closures/feed"
-		feed := rssFeed{
-			Version: "2.0",
-			AtomNS:  "http://www.w3.org/2005/Atom",
-			Channel: rssChannel{
-				Title: "WordPress.org Mass Closures — WP Packages",
-				Link:  a.Config.AppURL + "/closures",
-				AtomLink: atomSelfLink{
-					Href: feedURL,
-					Rel:  "self",
-					Type: "application/rss+xml",
-				},
-				Description:   "Recent mass-closure events on WordPress.org",
-				Language:      "en-us",
-				LastBuildDate: time.Now().Format(time.RFC1123Z),
-			},
-		}
-		for _, e := range events {
-			vendorURL := a.Config.AppURL + "/closures/" + e.VendorSlug
-			feed.Channel.Items = append(feed.Channel.Items, rssItem{
-				Title: e.VendorName + ": " + strconv.Itoa(e.PluginCount) + " plugins closed",
-				Link:  vendorURL,
-				GUID: rssGUID{
-					Value:       vendorURL + "#" + strconv.FormatInt(e.ID, 10),
-					IsPermaLink: "false",
-				},
-				PubDate:     e.DetectedAt.Format(time.RFC1123Z),
-				Description: rssEventDescription(e),
-			})
+func handleClosuresFeed(a *app.App) http.HandlerFunc {
+	cache := &closuresFeedCache{}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		cache.mu.RLock()
+		fresh := !cache.generatedAt.IsZero() && time.Since(cache.generatedAt) < time.Hour
+		cached := cache.data
+		cache.mu.RUnlock()
+
+		if !fresh {
+			events, _, err := packages.GetClosureEvents(r.Context(), a.DB, 1, closuresPerPage)
+			if err != nil {
+				a.Logger.Error("querying closure events for feed", "error", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			cached = renderClosuresRSS(a.Config.AppURL, events)
+			cache.mu.Lock()
+			cache.data = cached
+			cache.generatedAt = time.Now()
+			cache.mu.Unlock()
 		}
 
 		w.Header().Set("Content-Type", "application/rss+xml; charset=utf-8")
-		_, _ = w.Write([]byte(xml.Header))
-		_ = xml.NewEncoder(w).Encode(feed)
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		_, _ = w.Write(cached)
 	}
+}
+
+func renderClosuresRSS(appURL string, events []packages.ClosureEvent) []byte {
+	feed := rssFeed{
+		Version: "2.0",
+		AtomNS:  "http://www.w3.org/2005/Atom",
+		Channel: rssChannel{
+			Title: "WordPress.org Mass Closures — WP Packages",
+			Link:  appURL + "/closures",
+			AtomLink: atomSelfLink{
+				Href: appURL + "/closures/feed",
+				Rel:  "self",
+				Type: "application/rss+xml",
+			},
+			Description:   "Recent mass-closure events on WordPress.org",
+			Language:      "en-us",
+			LastBuildDate: time.Now().Format(time.RFC1123Z),
+		},
+	}
+	for _, e := range events {
+		vendorURL := appURL + "/closures/" + e.VendorSlug
+		feed.Channel.Items = append(feed.Channel.Items, rssItem{
+			Title: e.VendorName + ": " + strconv.Itoa(e.PluginCount) + " plugins closed",
+			Link:  vendorURL,
+			GUID: rssGUID{
+				Value:       vendorURL + "#" + strconv.FormatInt(e.ID, 10),
+				IsPermaLink: "false",
+			},
+			PubDate:     e.DetectedAt.Format(time.RFC1123Z),
+			Description: rssEventDescription(e),
+		})
+	}
+	var buf strings.Builder
+	buf.WriteString(xml.Header)
+	enc := xml.NewEncoder(&buf)
+	_ = enc.Encode(feed)
+	return []byte(buf.String())
 }

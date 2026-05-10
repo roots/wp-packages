@@ -668,7 +668,9 @@ func handleVendorClosuresMD(a *app.App, appURL string) http.HandlerFunc {
 			return
 		}
 		if len(events) == 0 {
-			http.NotFound(w, r)
+			w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte("# Not found\n\nNo mass-closure events for that vendor. See [/closures](" + siteURL(appURL, "/closures") + ").\n"))
 			return
 		}
 
