@@ -138,6 +138,9 @@ func GetClosureEvents(ctx context.Context, db *sql.DB, page, perPage int) ([]Clo
 		}
 		events = append(events, e)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
 	return events, total, nil
 }
 
@@ -159,6 +162,9 @@ func GetVendorClosureEvents(ctx context.Context, db *sql.DB, vendorSlug string) 
 			return nil, err
 		}
 		events = append(events, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return events, nil
 }
@@ -220,6 +226,9 @@ func GetClosurePluginStatuses(ctx context.Context, db *sql.DB, slugs []string) (
 			IsActive:    isActive,
 			IsClosed:    permanentlyClosed,
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return statuses, nil
 }

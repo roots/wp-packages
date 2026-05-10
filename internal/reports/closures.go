@@ -59,7 +59,14 @@ func TrackMassClosures(ctx context.Context, db *sql.DB) error {
 	groups := groupByVendor(closures)
 
 	for vendorName, items := range groups {
-		if len(items) < ClosureEventThreshold {
+		// Dedupe by slug first, then check threshold — duplicate closure
+		// rows for the same plugin (possible if a re-check fires twice
+		// within the window) shouldn't inflate the count.
+		slugs := make(map[string]struct{})
+		for _, it := range items {
+			slugs[it.Slug] = struct{}{}
+		}
+		if len(slugs) < ClosureEventThreshold {
 			continue
 		}
 
@@ -81,11 +88,6 @@ func TrackMassClosures(ctx context.Context, db *sql.DB) error {
 
 		if err != nil && err != sql.ErrNoRows {
 			return fmt.Errorf("checking existing event for %s: %w", vendorSlug, err)
-		}
-
-		slugs := make(map[string]struct{})
-		for _, it := range items {
-			slugs[it.Slug] = struct{}{}
 		}
 
 		if err == sql.ErrNoRows {

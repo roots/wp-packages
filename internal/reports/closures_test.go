@@ -20,6 +20,8 @@ func TestSlugify(t *testing.T) {
 		{"Tom & Jerry", "tom-jerry"},
 		{"  spaced  ", "spaced"},
 		{"---hyphens---", "hyphens"},
+		{"feed", "feed-vendor"},
+		{"Feed", "feed-vendor"},
 		{"", ""},
 	}
 	for _, tt := range tests {

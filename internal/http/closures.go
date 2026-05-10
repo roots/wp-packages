@@ -32,7 +32,6 @@ func handleClosures(a *app.App, tmpl *templateSet) http.HandlerFunc {
 			"AppURL":     a.Config.AppURL,
 			"CDNURL":     a.Config.R2.CDNPublicURL,
 			"Events":     events,
-			"Total":      total,
 			"Page":       page,
 			"PerPage":    closuresPerPage,
 			"TotalPages": totalPages(total, closuresPerPage),
@@ -55,6 +54,9 @@ func handleVendorClosures(a *app.App, tmpl *templateSet) http.HandlerFunc {
 			return
 		}
 
+		// Plugin statuses enrich the table with current state (active /
+		// closed / tombstoned). Failure here is non-fatal — we render
+		// with statuses=nil and every row falls into the "Unknown" branch.
 		statuses, err := packages.GetClosurePluginStatuses(r.Context(), a.DB, uniqueSlugs(events))
 		if err != nil {
 			a.Logger.Error("querying closure plugin statuses", "error", err)
@@ -162,20 +164,32 @@ type rssFeed struct {
 }
 
 type rssChannel struct {
-	Title         string    `xml:"title"`
-	Link          string    `xml:"link"`
-	Description   string    `xml:"description"`
-	Language      string    `xml:"language"`
-	LastBuildDate string    `xml:"lastBuildDate"`
-	Items         []rssItem `xml:"item"`
+	Title         string       `xml:"title"`
+	Link          string       `xml:"link"`
+	AtomLink      atomSelfLink `xml:"atom:link"`
+	Description   string       `xml:"description"`
+	Language      string       `xml:"language"`
+	LastBuildDate string       `xml:"lastBuildDate"`
+	Items         []rssItem    `xml:"item"`
+}
+
+type atomSelfLink struct {
+	Href string `xml:"href,attr"`
+	Rel  string `xml:"rel,attr"`
+	Type string `xml:"type,attr"`
 }
 
 type rssItem struct {
-	Title       string `xml:"title"`
-	Link        string `xml:"link"`
-	GUID        string `xml:"guid"`
-	PubDate     string `xml:"pubDate"`
-	Description string `xml:"description"`
+	Title       string  `xml:"title"`
+	Link        string  `xml:"link"`
+	GUID        rssGUID `xml:"guid"`
+	PubDate     string  `xml:"pubDate"`
+	Description string  `xml:"description"`
+}
+
+type rssGUID struct {
+	Value       string `xml:",chardata"`
+	IsPermaLink string `xml:"isPermaLink,attr"`
 }
 
 // rssEventDescription returns a scannable summary listing the affected plugin
@@ -201,12 +215,18 @@ func handleClosuresFeed(a *app.App) http.HandlerFunc {
 			return
 		}
 
+		feedURL := a.Config.AppURL + "/closures/feed"
 		feed := rssFeed{
 			Version: "2.0",
 			AtomNS:  "http://www.w3.org/2005/Atom",
 			Channel: rssChannel{
-				Title:         "WordPress.org Mass Closures — WP Packages",
-				Link:          a.Config.AppURL + "/closures",
+				Title: "WordPress.org Mass Closures — WP Packages",
+				Link:  a.Config.AppURL + "/closures",
+				AtomLink: atomSelfLink{
+					Href: feedURL,
+					Rel:  "self",
+					Type: "application/rss+xml",
+				},
 				Description:   "Recent mass-closure events on WordPress.org",
 				Language:      "en-us",
 				LastBuildDate: time.Now().Format(time.RFC1123Z),
@@ -215,9 +235,12 @@ func handleClosuresFeed(a *app.App) http.HandlerFunc {
 		for _, e := range events {
 			vendorURL := a.Config.AppURL + "/closures/" + e.VendorSlug
 			feed.Channel.Items = append(feed.Channel.Items, rssItem{
-				Title:       e.VendorName + ": " + strconv.Itoa(e.PluginCount) + " plugins closed",
-				Link:        vendorURL,
-				GUID:        vendorURL + "#" + strconv.FormatInt(e.ID, 10),
+				Title: e.VendorName + ": " + strconv.Itoa(e.PluginCount) + " plugins closed",
+				Link:  vendorURL,
+				GUID: rssGUID{
+					Value:       vendorURL + "#" + strconv.FormatInt(e.ID, 10),
+					IsPermaLink: "false",
+				},
 				PubDate:     e.DetectedAt.Format(time.RFC1123Z),
 				Description: rssEventDescription(e),
 			})

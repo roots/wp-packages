@@ -54,4 +54,12 @@ VALUES (
 );
 
 -- +goose Down
-DELETE FROM closure_events WHERE vendor_slug IN ('liton-arefin', 'bplugins', 'essential-plugin', 'wpfactory', 'algoritmika', 'wbw-plugins');
+-- Scope by (vendor_slug, detected_at) so any real events recorded for
+-- these vendors after deploy aren't deleted on rollback.
+DELETE FROM closure_events WHERE
+    (vendor_slug = 'liton-arefin'     AND detected_at = '2026-05-08T11:00:38Z') OR
+    (vendor_slug = 'bplugins'         AND detected_at = '2026-04-29T16:02:25Z') OR
+    (vendor_slug = 'essential-plugin' AND detected_at = '2026-04-11T20:53:31Z') OR
+    (vendor_slug = 'wpfactory'        AND detected_at = '2026-04-27T13:03:45Z') OR
+    (vendor_slug = 'algoritmika'      AND detected_at = '2026-04-27T13:03:45Z') OR
+    (vendor_slug = 'wbw-plugins'      AND detected_at = '2026-04-27T13:03:45Z');
