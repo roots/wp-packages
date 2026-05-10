@@ -1022,6 +1022,9 @@ func handleStatus(a *app.App, tmpl *templateSet) http.HandlerFunc {
 			"PackagesUpdated24h": packagesUpdated24h,
 			"Deactivated24h":     deactivated24h,
 			"Reactivated24h":     reactivated24h,
+			"AppURL":             a.Config.AppURL,
+			"CDNURL":             a.Config.R2.CDNPublicURL,
+			"OGImage":            ogImageURL(a.Config, "social/default.png"),
 		}
 		if len(statusBuilds) > 0 {
 			data["LastBuildStartedAt"] = statusBuilds[0].StartedAt

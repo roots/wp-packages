@@ -9,8 +9,13 @@
 {{define "og_meta"}}
 <meta property="og:title" content="Status — WP Packages">
 <meta property="og:description" content="WP Packages build and status check activity.">
+{{if .OGImage}}<meta property="og:image" content="{{.OGImage}}">{{end}}
 {{if .AppURL}}<meta property="og:url" content="{{.AppURL}}/status">{{end}}
 <meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Status — WP Packages">
+<meta name="twitter:description" content="WP Packages build and status check activity.">
+{{if .OGImage}}<meta name="twitter:image" content="{{.OGImage}}">{{end}}
 {{end}}
 {{define "content"}}
 <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
