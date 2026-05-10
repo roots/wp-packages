@@ -191,7 +191,61 @@ Returns the subset of closed packages that have been flagged as permanently clos
 curl https://wp-packages.org/api/packages/wp-plugin/closed/permanent
 ```
 
-Stats responses are cached for 5 minutes; the closed-packages list is cached for 1 hour. Returns `404` for inactive or unknown packages, and `429` when rate limited.
+### `GET /api/closures`
+
+Returns a paginated list of mass-closure events detected in rolling 24-hour windows.
+
+```sh
+curl https://wp-packages.org/api/closures
+```
+
+```json
+{
+  "events": [
+    {
+      "id": 42,
+      "vendor_name": "WPFactory",
+      "vendor_slug": "wpfactory",
+      "detected_at": "2026-04-27T13:03:45Z",
+      "detected_at_formatted": "April 27, 2026",
+      "plugin_slugs": ["plugin-a", "plugin-b"],
+      "plugin_count": 2
+    }
+  ],
+  "page": 1,
+  "per_page": 50,
+  "total": 6,
+  "total_pages": 1,
+  "documentation_url": "https://wp-packages.org/docs#api-closures"
+}
+```
+
+### `GET /api/closures/{vendor_slug}`
+
+Returns all historical mass-closure events for a specific vendor.
+
+```sh
+curl https://wp-packages.org/api/closures/wpfactory
+```
+
+```json
+{
+  "events": [
+    {
+      "id": 42,
+      "vendor_name": "WPFactory",
+      "vendor_slug": "wpfactory",
+      "detected_at": "2026-04-27T13:03:45Z",
+      "detected_at_formatted": "April 27, 2026",
+      "plugin_slugs": ["plugin-a", "plugin-b"],
+      "plugin_count": 2
+    }
+  ],
+  "documentation_url": "https://wp-packages.org/docs#api-vendor-closures"
+}
+```
+
+Stats responses are cached for 5 minutes; the closed-packages and closures endpoints are cached for 1 hour. Returns `404` for inactive or unknown packages, and `429` when rate limited.
 
 ## Badges for plugin authors
 

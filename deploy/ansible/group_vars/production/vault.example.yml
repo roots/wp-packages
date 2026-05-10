@@ -10,7 +10,6 @@
 # - vault_r2_cdn_bucket
 # - vault_sentry_dsn
 # - vault_discord_webhook_url
-# - vault_github_token
 
 vault_r2_access_key_id: "REPLACE_ME"
 vault_r2_secret_access_key: "REPLACE_ME"
@@ -20,7 +19,6 @@ vault_r2_cdn_bucket: "REPLACE_ME"
 vault_r2_litestream_bucket: "REPLACE_ME"
 vault_sentry_dsn: "REPLACE_ME"
 vault_discord_webhook_url: "REPLACE_ME"
-vault_github_token: "REPLACE_ME"
 vault_ssl_certificate: |
   -----BEGIN CERTIFICATE-----
   REPLACE_ME

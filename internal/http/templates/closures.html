@@ -1,0 +1,91 @@
+{{template "layout" .}}
+{{define "title"}}WordPress.org Mass Closures — WP Packages{{end}}
+{{define "meta_seo"}}
+<meta name="description" content="History of WordPress.org plugin vendors with multiple closures within a 24-hour window.">
+{{if .AppURL}}<link rel="canonical" href="{{.AppURL}}/closures">{{end}}
+{{end}}
+{{define "json_ld"}}{{end}}
+{{define "og_meta"}}
+<meta property="og:title" content="WordPress.org Mass Closures — WP Packages">
+<meta property="og:description" content="History of WordPress.org plugin vendors with multiple closures within a 24-hour window.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+{{end}}
+{{define "content"}}
+<div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
+<div class="flex items-center justify-between mb-6">
+<h1 class="text-4xl font-bold tracking-tight text-gray-900">Mass Closure History</h1>
+<div class="flex gap-4">
+<a href="/closures/feed" class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-brand-primary transition-colors">
+<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6.18,15.64A2.18,2.18,0,0,1,8.36,17.82,2.18,2.18,0,0,1,6.18,20,2.18,2.18,0,0,1,4,17.82,2.18,2.18,0,0,1,6.18,15.64ZM4,4.44A15.56,15.56,0,0,1,19.56,20h-2.83A12.73,12.73,0,0,0,4,7.27Zm0,5.66a9.9,9.9,0,0,1,9.9,9.9H11.07A7,7,0,0,0,4,12.93Z"/></svg>
+RSS
+</a>
+<a href="/api/closures" class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-brand-primary transition-colors">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+API
+</a>
+</div>
+</div>
+
+<p class="text-gray-500 mb-4 max-w-3xl">
+Tracking WordPress.org vendors whose plugins have been closed in bulk on WordPress.org.
+</p>
+<p class="text-gray-500 mb-10 max-w-3xl text-sm">
+An event is recorded when <strong>2 or more plugins</strong> from the same vendor are closed within a <strong>rolling 24-hour window</strong>. Additional closures from that vendor in the same window update the existing event; a new event starts only after the window resets. Detected by <a href="/status" class="text-brand-primary hover:underline">hourly status checks</a> of every package on WordPress.org.
+</p>
+
+<div class="max-w-4xl">
+
+{{if .Events}}
+<div class="rounded-xl border border-gray-200/60 overflow-hidden">
+<ul role="list" class="divide-y divide-gray-200/60">
+{{range .Events}}
+<li>
+<a href="/closures/{{.VendorSlug}}" class="block hover:bg-gray-50/50 transition-colors">
+<div class="px-4 py-4 sm:px-6">
+<div class="flex items-center justify-between">
+<p class="truncate text-sm font-medium text-brand-primary">{{.VendorName}}</p>
+<div class="ml-2 flex flex-shrink-0">
+<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs lowercase text-red-700">
+{{.PluginCount}} closures
+</span>
+</div>
+</div>
+<div class="mt-2 sm:flex sm:justify-between">
+<div class="sm:flex">
+<p class="flex items-center text-xs text-gray-500">
+<svg class="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+</svg>
+Detected {{timeAgo (.DetectedAt.Format "2006-01-02T15:04:05Z")}}
+</p>
+</div>
+<div class="mt-2 flex items-center text-xs text-gray-400 sm:mt-0">
+<p>{{.DetectedAt.Format "Jan 02, 2006"}}</p>
+</div>
+</div>
+</div>
+</a>
+</li>
+{{end}}
+</ul>
+</div>
+
+{{if gt .TotalPages 1}}
+<div class="flex justify-center items-center gap-1 pt-8">
+{{if gt .Page 1}}<a href="/closures?page={{sub .Page 1}}" class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>Previous</a>{{else}}<span class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-300 cursor-default"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>Previous</span>{{end}}
+{{range pageRange .Page .TotalPages}}{{if eq . 0}}<span class="min-w-9 h-9 px-2 inline-flex items-center justify-center text-sm text-gray-400">...</span>{{else if eq . $.Page}}<span class="min-w-9 h-9 px-2 inline-flex items-center justify-center border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50">{{.}}</span>{{else}}<a href="/closures?page={{.}}" class="min-w-9 h-9 px-2 inline-flex items-center justify-center border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer">{{.}}</a>{{end}}{{end}}
+{{if lt .Page .TotalPages}}<a href="/closures?page={{add .Page 1}}" class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer">Next<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></a>{{else}}<span class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-300 cursor-default">Next<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></span>{{end}}
+</div>
+{{end}}
+
+{{else}}
+<div class="text-center py-12">
+<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+<h3 class="mt-2 text-sm font-semibold text-gray-900">No mass-closure events</h3>
+<p class="mt-1 text-sm text-gray-500">Everything looks good! No recent outbreaks detected.</p>
+</div>
+{{end}}
+</div>
+</div>
+{{end}}

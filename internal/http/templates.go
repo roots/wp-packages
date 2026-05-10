@@ -134,6 +134,8 @@ type templateSet struct {
 	notFound        *template.Template
 	adminLogs       *template.Template
 	status          *template.Template
+	closures        *template.Template
+	vendorClosures  *template.Template
 }
 
 func loadTemplates(env string) *templateSet {
@@ -150,6 +152,8 @@ func loadTemplates(env string) *templateSet {
 		notFound:        parse("templates/layout.html", "templates/404.html"),
 		adminLogs:       parse("templates/admin_layout.html", "templates/admin_logs.html"),
 		status:          parse("templates/layout.html", "templates/status.html"),
+		closures:        parse("templates/layout.html", "templates/closures.html"),
+		vendorClosures:  parse("templates/layout.html", "templates/vendor_closures.html"),
 	}
 }
 
