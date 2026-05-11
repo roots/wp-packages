@@ -70,7 +70,7 @@ func TestR2Sync(t *testing.T) {
 	}
 
 	// 4. First sync — all packages uploaded
-	err = deploy.SyncToR2(ctx, r2Cfg, buildDir, result.BuildID, "", testLogger(t))
+	err = deploy.SyncToR2(ctx, db, r2Cfg, buildDir, result.BuildID, "", testLogger(t))
 	if err != nil {
 		t.Fatalf("first sync failed: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestR2Sync(t *testing.T) {
 
 	// 5. Second sync — same build, nothing should change
 	// (pass buildDir as previousBuildDir so unchanged files are skipped)
-	err = deploy.SyncToR2(ctx, r2Cfg, buildDir, result.BuildID, buildDir, testLogger(t))
+	err = deploy.SyncToR2(ctx, db, r2Cfg, buildDir, result.BuildID, buildDir, testLogger(t))
 	if err != nil {
 		t.Fatalf("second sync failed: %v", err)
 	}
