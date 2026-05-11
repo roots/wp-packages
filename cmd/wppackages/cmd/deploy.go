@@ -27,7 +27,7 @@ func secondsPtrSince(start time.Time) *int {
 
 func syncToR2Timed(cmd *cobra.Command, buildDir, buildID string) error {
 	started := time.Now()
-	err := deploy.SyncToR2(cmd.Context(), application.Config.R2, buildDir, buildID, previousBuildDirFor(), application.Logger)
+	err := deploy.SyncToR2(cmd.Context(), application.DB, application.Config.R2, buildDir, buildID, previousBuildDirFor(), application.Logger)
 	deployR2SyncSeconds = secondsPtrSince(started)
 	if err != nil {
 		return fmt.Errorf("R2 sync failed: %w", err)

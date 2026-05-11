@@ -3,6 +3,7 @@ package deploy
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"math"
@@ -17,7 +18,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/roots/wp-packages/internal/composer"
 	"github.com/roots/wp-packages/internal/config"
+	"github.com/roots/wp-packages/internal/packages"
 )
 
 const (
@@ -29,7 +32,12 @@ const (
 // SyncToR2 uploads build files to R2. Only p2/ files and packages.json are uploaded.
 // p2/ files are skipped if unchanged from the previous build (byte-compared locally).
 // packages.json is uploaded last.
-func SyncToR2(ctx context.Context, cfg config.R2Config, buildDir, buildID, previousBuildDir string, logger *slog.Logger) error {
+//
+// After uploads complete, deployed_hash is stamped for active packages (so we know
+// the file is on R2), and any inactive packages whose deployed_hash is still set
+// get their R2 files deleted. deployed_hash is only cleared per-package on full
+// delete success, so transient failures are retried on the next sync.
+func SyncToR2(ctx context.Context, db *sql.DB, cfg config.R2Config, buildDir, buildID, previousBuildDir string, logger *slog.Logger) error {
 	client := newS3Client(cfg)
 
 	// Collect file paths only (not data) to avoid loading everything into memory.
@@ -88,6 +96,49 @@ func SyncToR2(ctx context.Context, cfg config.R2Config, buildDir, buildID, previ
 
 	if err := g.Wait(); err != nil {
 		return err
+	}
+
+	// Stamp deployed_hash for active packages so we can detect deactivated
+	// packages whose files still need to be removed from R2. Use content_hash
+	// when available, falling back to a sentinel since not all rows have one.
+	if _, err := db.ExecContext(ctx, `
+		UPDATE packages SET deployed_hash = COALESCE(content_hash, '1')
+		WHERE is_active = 1
+			AND (deployed_hash IS NULL
+				OR (content_hash IS NOT NULL AND deployed_hash != content_hash))`); err != nil {
+		return fmt.Errorf("stamping deployed_hash: %w", err)
+	}
+
+	// Delete R2 files for deactivated packages.
+	deactivated, err := packages.GetDeactivatedDeployedPackages(ctx, db)
+	if err != nil {
+		return fmt.Errorf("querying deactivated packages: %w", err)
+	}
+
+	var deletedCount, deleteErrors int
+	for _, p := range deactivated {
+		allOK := true
+		for _, key := range composer.ObjectKeys(p.Type, p.Name) {
+			if err := deleteObjectWithRetry(ctx, client, cfg.Bucket, key, logger); err != nil {
+				logger.Warn("R2 sync: failed to delete deactivated package file", "key", key, "error", err)
+				allOK = false
+			}
+		}
+		if !allOK {
+			deleteErrors++
+			continue
+		}
+		if _, err := db.ExecContext(ctx,
+			`UPDATE packages SET deployed_hash = NULL WHERE id = ?`, p.ID); err != nil {
+			logger.Warn("R2 sync: failed to clear deployed_hash", "package", p.Name, "error", err)
+			continue
+		}
+		deletedCount++
+		logger.Info("R2 sync: deleted deactivated package", "type", p.Type, "name", p.Name)
+	}
+	if deletedCount > 0 || deleteErrors > 0 {
+		logger.Info("R2 sync: deactivated package cleanup",
+			"deleted", deletedCount, "errors", deleteErrors, "candidates", len(deactivated))
 	}
 
 	// Upload packages.json last.
