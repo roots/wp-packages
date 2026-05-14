@@ -50,7 +50,7 @@ func runCheckStatus(cmd *cobra.Command, args []string) error {
 	var runErr error
 	defer func() {
 		_ = packages.FinishStatusCheck(ctx, application.DB, runID, started,
-			checked.Load(), deactivated.Load(), reactivated.Load(), failed.Load(), runErr)
+			checked.Load(), deactivated.Load()+tombstoned.Load(), reactivated.Load(), failed.Load(), runErr)
 	}()
 
 	pkgs, err := packages.GetAllPackages(ctx, application.DB, pkgType)
