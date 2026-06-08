@@ -155,6 +155,34 @@ func TestNormalizeVersions(t *testing.T) {
 	}
 }
 
+func TestFilterNewerThan(t *testing.T) {
+	versions := map[string]string{
+		"10.6.0":    "https://example.com/10.6.0.zip",
+		"10.7.0":    "https://example.com/10.7.0.zip",
+		"10.8.0":    "https://example.com/10.8.0.zip",
+		"dev-trunk": "https://example.com/trunk.zip",
+	}
+
+	got := FilterNewerThan(versions, "10.7.0")
+	if len(got) != 3 {
+		t.Fatalf("FilterNewerThan returned %d entries, want 3", len(got))
+	}
+	if _, ok := got["10.8.0"]; ok {
+		t.Fatal("10.8.0 should have been filtered out")
+	}
+	if got["10.7.0"] == "" {
+		t.Fatal("10.7.0 should remain")
+	}
+	if got["dev-trunk"] == "" {
+		t.Fatal("dev-trunk should remain")
+	}
+
+	unfiltered := FilterNewerThan(versions, "not-a-version")
+	if len(unfiltered) != len(versions) {
+		t.Fatalf("invalid ceiling should not filter versions")
+	}
+}
+
 func TestIsStable(t *testing.T) {
 	stable := []string{"1.0", "1.0.0", "10.6.2", "5.3.2"}
 	for _, v := range stable {

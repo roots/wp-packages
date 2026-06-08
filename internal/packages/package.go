@@ -67,7 +67,7 @@ type Package struct {
 }
 
 // NormalizeAndStoreVersions normalizes raw versions and serializes to VersionsJSON.
-// It also sets CurrentVersion to the highest available version.
+// It also sets CurrentVersion to the highest published version.
 // Returns the number of valid versions.
 func (p *Package) NormalizeAndStoreVersions() (int, error) {
 	if p.RawVersions == nil {
@@ -76,6 +76,9 @@ func (p *Package) NormalizeAndStoreVersions() (int, error) {
 	}
 
 	normalized := version.NormalizeVersions(p.RawVersions)
+	if p.WporgVersion != nil {
+		normalized = version.FilterNewerThan(normalized, *p.WporgVersion)
+	}
 
 	data, err := json.Marshal(normalized)
 	if err != nil {

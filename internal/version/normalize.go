@@ -57,6 +57,23 @@ func NormalizeVersions(versions map[string]string) map[string]string {
 	return result
 }
 
+// FilterNewerThan removes tagged versions newer than maxVersion. dev-trunk is
+// preserved; an invalid maxVersion disables filtering.
+func FilterNewerThan(versions map[string]string, maxVersion string) map[string]string {
+	max := Normalize(maxVersion)
+	if max == "" || max == "dev-trunk" {
+		return versions
+	}
+
+	result := make(map[string]string, len(versions))
+	for v, url := range versions {
+		if v == "dev-trunk" || Compare(v, max) <= 0 {
+			result[v] = url
+		}
+	}
+	return result
+}
+
 // Compare compares two version strings numerically by segment.
 // Pre-release suffixes (e.g. -beta1) are compared lexically when
 // numeric segments are equal. Returns -1, 0, or 1.
