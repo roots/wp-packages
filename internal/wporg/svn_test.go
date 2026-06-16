@@ -118,9 +118,13 @@ func TestParseSVNLogSlugs(t *testing.T) {
 </S:log-item>
 </S:log-report>`
 
-	slugRevisions, err := parseSVNLogSlugs([]byte(xml))
+	slugRevisions, maxRev, err := parseSVNLogSlugs([]byte(xml))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if maxRev != 101 {
+		t.Errorf("maxRev = %d, want 101 (highest revision in the response)", maxRev)
 	}
 
 	if len(slugRevisions) != 2 {
@@ -135,6 +139,58 @@ func TestParseSVNLogSlugs(t *testing.T) {
 		t.Error("expected jetpack in slugs")
 	} else if rev != 101 {
 		t.Errorf("jetpack revision = %d, want 101", rev)
+	}
+}
+
+// TestParseSVNLogSlugsMaxRevReflectsResponse guards the watermark-advance fix:
+// maxRev must reflect the highest revision actually present in the REPORT
+// response, not any externally-requested bound. When the REPORT replica lags,
+// the response stops short of the requested range, and the caller must advance
+// the watermark only this far so the gap is rescanned rather than skipped.
+func TestParseSVNLogSlugsMaxRevReflectsResponse(t *testing.T) {
+	// Requested up to a high revision, but the replica only returned up to 205.
+	xml := `<?xml version="1.0" encoding="utf-8"?>
+<S:log-report xmlns:S="svn:" xmlns:D="DAV:">
+<S:log-item>
+<D:version-name>204</D:version-name>
+<S:date>2026-05-29T10:00:00.000000Z</S:date>
+<S:modified-path node-kind="file">/colissimo-shipping-methods-for-woocommerce/trunk/readme.txt</S:modified-path>
+</S:log-item>
+<S:log-item>
+<D:version-name>205</D:version-name>
+<S:date>2026-05-29T10:05:00.000000Z</S:date>
+<S:added-path node-kind="dir">/colissimo-shipping-methods-for-woocommerce/tags/2.10.0</S:added-path>
+</S:log-item>
+</S:log-report>`
+
+	slugRevisions, maxRev, err := parseSVNLogSlugs([]byte(xml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if maxRev != 205 {
+		t.Errorf("maxRev = %d, want 205 (highest revision in response)", maxRev)
+	}
+	if rev := slugRevisions["colissimo-shipping-methods-for-woocommerce"]; rev != 205 {
+		t.Errorf("slug revision = %d, want 205", rev)
+	}
+}
+
+// TestParseSVNLogSlugsEmpty ensures an empty (but valid) response yields maxRev 0
+// so the caller leaves its watermark untouched instead of advancing blindly.
+func TestParseSVNLogSlugsEmpty(t *testing.T) {
+	xml := `<?xml version="1.0" encoding="utf-8"?>
+<S:log-report xmlns:S="svn:" xmlns:D="DAV:">
+</S:log-report>`
+
+	slugRevisions, maxRev, err := parseSVNLogSlugs([]byte(xml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if maxRev != 0 {
+		t.Errorf("maxRev = %d, want 0 for empty response", maxRev)
+	}
+	if len(slugRevisions) != 0 {
+		t.Errorf("expected no slugs, got %d", len(slugRevisions))
 	}
 }
 

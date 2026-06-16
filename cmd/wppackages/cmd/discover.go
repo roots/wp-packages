@@ -14,6 +14,11 @@ import (
 	"github.com/roots/wp-packages/internal/wporg"
 )
 
+// svnLogChunkSize bounds how many revisions each changelog REPORT covers, so the
+// watermark advances in verifiable steps and a large catch-up after downtime
+// can't exceed the server's per-response log-item limit.
+const svnLogChunkSize = 10000
+
 var discoverCmd = &cobra.Command{
 	Use:   "discover",
 	Short: "Discover packages from WordPress.org",
@@ -239,12 +244,44 @@ func markChangedFromSVNLog(ctx context.Context, client *wporg.Client, src struct
 		}
 	}
 
-	if lastRev > 0 && lastRev < currentRev {
-		application.Logger.Info("fetching SVN changelog",
-			"type", src.pkgType, "from_rev", lastRev, "to_rev", currentRev)
+	// First run: no baseline to diff against, so just record HEAD as the
+	// starting point for the next run.
+	if lastRev == 0 {
+		application.Logger.Info("no previous SVN revision stored, skipping changelog (first run)",
+			"type", src.pkgType, "current_rev", currentRev)
+		if err := packages.SetMeta(ctx, application.DB, src.metaKey, strconv.FormatInt(currentRev, 10)); err != nil {
+			return fmt.Errorf("storing revision: %w", err)
+		}
+		return nil
+	}
 
-		slugRevisions, err := client.FetchSVNChangedSlugs(ctx, src.url, lastRev+1, currentRev)
+	// Scan forward from the watermark in bounded chunks. The watermark advances
+	// only to the highest revision the changelog REPORT actually returned —
+	// never to currentRev, which is read from a different endpoint (the HTML
+	// listing) that can be ahead of the REPORT replica. Advancing past
+	// revisions the REPORT never returned would skip those commits permanently
+	// and strand the affected packages at stale versions. Chunking also keeps
+	// each response well under the server's log-item limit so a large catch-up
+	// after downtime can't silently truncate.
+	cursor := lastRev
+	for cursor < currentRev {
+		chunkEnd := cursor + svnLogChunkSize
+		if chunkEnd > currentRev {
+			chunkEnd = currentRev
+		}
+
+		application.Logger.Info("fetching SVN changelog",
+			"type", src.pkgType, "from_rev", cursor+1, "to_rev", chunkEnd)
+
+		slugRevisions, maxRev, err := client.FetchSVNChangedSlugs(ctx, src.url, cursor+1, chunkEnd)
 		if err != nil {
+			// Persist whatever we fully scanned before bailing so the next run
+			// resumes from there instead of redoing work.
+			if cursor > lastRev {
+				if setErr := packages.SetMeta(ctx, application.DB, src.metaKey, strconv.FormatInt(cursor, 10)); setErr != nil {
+					return fmt.Errorf("storing revision: %w", setErr)
+				}
+			}
 			return err
 		}
 
@@ -254,15 +291,27 @@ func markChangedFromSVNLog(ctx context.Context, client *wporg.Client, src struct
 				return fmt.Errorf("marking changed packages: %w", err)
 			}
 			application.Logger.Info("marked changed packages from SVN log",
-				"type", src.pkgType, "slugs_in_log", len(slugRevisions), "packages_marked", affected)
+				"type", src.pkgType, "from_rev", cursor+1, "to_rev", chunkEnd,
+				"slugs_in_log", len(slugRevisions), "packages_marked", affected)
 		}
-	} else if lastRev == 0 {
-		application.Logger.Info("no previous SVN revision stored, skipping changelog (first run)",
-			"type", src.pkgType, "current_rev", currentRev)
+
+		// Every revision in the repo is a commit, so the REPORT yields a
+		// log-item per revision in range; maxRev is therefore the highest
+		// revision the REPORT replica actually holds within this chunk.
+		if maxRev <= cursor {
+			// REPORT endpoint is behind our cursor (replica lag) — nothing new
+			// available. Stop and retry from the same point next run.
+			break
+		}
+		cursor = maxRev
+		if maxRev < chunkEnd {
+			// Replica lagged within this chunk; rescan the remainder next run
+			// rather than skipping it.
+			break
+		}
 	}
 
-	// Store current revision for next run.
-	if err := packages.SetMeta(ctx, application.DB, src.metaKey, strconv.FormatInt(currentRev, 10)); err != nil {
+	if err := packages.SetMeta(ctx, application.DB, src.metaKey, strconv.FormatInt(cursor, 10)); err != nil {
 		return fmt.Errorf("storing revision: %w", err)
 	}
 
@@ -332,7 +381,7 @@ func runBackfillRevisions(cmd *cobra.Command, args []string) error {
 		var slugRevisions map[string]int64
 		var fetchErr error
 		for attempt := 1; attempt <= 3; attempt++ {
-			slugRevisions, fetchErr = client.FetchSVNChangedSlugs(ctx, baseURL, toRev, fromRev)
+			slugRevisions, _, fetchErr = client.FetchSVNChangedSlugs(ctx, baseURL, toRev, fromRev)
 			if fetchErr == nil {
 				break
 			}
