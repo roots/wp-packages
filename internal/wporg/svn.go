@@ -138,8 +138,12 @@ type svnLogItem struct {
 
 // FetchSVNChangedSlugs queries the SVN DAV log between two revisions and returns
 // a map of unique top-level slugs (plugin/theme names) to the highest SVN revision
-// that touched them within the queried range.
-func (c *Client) FetchSVNChangedSlugs(ctx context.Context, baseURL string, fromRev, toRev int64) (map[string]int64, error) {
+// that touched them within the queried range, plus the highest revision present
+// in the response. The caller must advance its watermark to that returned
+// revision (not to an externally-assumed HEAD), because the REPORT endpoint can
+// lag behind other endpoints; advancing past revisions the REPORT never returned
+// would skip those commits permanently.
+func (c *Client) FetchSVNChangedSlugs(ctx context.Context, baseURL string, fromRev, toRev int64) (map[string]int64, int64, error) {
 	body := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>`+
 		`<S:log-report xmlns:S="svn:" xmlns:D="DAV:">`+
 		`<S:start-revision>%d</S:start-revision>`+
@@ -151,7 +155,7 @@ func (c *Client) FetchSVNChangedSlugs(ctx context.Context, baseURL string, fromR
 	reqURL := strings.TrimSuffix(baseURL, "/") + "/!svn/bc/0/"
 	req, err := http.NewRequestWithContext(ctx, "REPORT", reqURL, strings.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("creating SVN log request: %w", err)
+		return nil, 0, fmt.Errorf("creating SVN log request: %w", err)
 	}
 	req.Header.Set("Content-Type", "text/xml")
 	req.Header.Set("User-Agent", UserAgent)
@@ -161,18 +165,18 @@ func (c *Client) FetchSVNChangedSlugs(ctx context.Context, baseURL string, fromR
 	davClient := &http.Client{Timeout: 600 * time.Second}
 	resp, err := davClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetching SVN log: %w", err)
+		return nil, 0, fmt.Errorf("fetching SVN log: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("SVN log returned status %d: %s", resp.StatusCode, string(respBody))
+		return nil, 0, fmt.Errorf("SVN log returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading SVN log response: %w", err)
+		return nil, 0, fmt.Errorf("reading SVN log response: %w", err)
 	}
 
 	return parseSVNLogSlugs(data)
@@ -190,17 +194,25 @@ func sanitizeXML(data []byte) []byte {
 }
 
 // parseSVNLogSlugs extracts unique top-level slugs from SVN log XML and maps
-// each slug to the highest revision that touched it.
+// each slug to the highest revision that touched it. It also returns the highest
+// revision present in the response (across all log-items, regardless of whether a
+// path yielded a slug) so callers can advance their watermark to exactly what the
+// REPORT covered.
 // Paths look like "/plugin-name/trunk/file.php" — we extract "plugin-name".
-func parseSVNLogSlugs(data []byte) (map[string]int64, error) {
+func parseSVNLogSlugs(data []byte) (map[string]int64, int64, error) {
 	data = sanitizeXML(data)
 	var report svnLogReport
 	if err := xml.Unmarshal(data, &report); err != nil {
-		return nil, fmt.Errorf("parsing SVN log XML: %w", err)
+		return nil, 0, fmt.Errorf("parsing SVN log XML: %w", err)
 	}
 
 	slugRevisions := make(map[string]int64)
+	var maxRev int64
 	for _, item := range report.Items {
+		if item.Revision > maxRev {
+			maxRev = item.Revision
+		}
+
 		allPaths := make([]string, 0, len(item.AddedPaths)+len(item.ModifiedPaths)+len(item.DeletedPaths))
 		allPaths = append(allPaths, item.AddedPaths...)
 		allPaths = append(allPaths, item.ModifiedPaths...)
@@ -215,7 +227,7 @@ func parseSVNLogSlugs(data []byte) (map[string]int64, error) {
 		}
 	}
 
-	return slugRevisions, nil
+	return slugRevisions, maxRev, nil
 }
 
 // slugFromPath extracts the top-level directory (slug) from an SVN path.
