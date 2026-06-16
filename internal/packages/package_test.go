@@ -3,6 +3,7 @@ package packages
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -156,6 +157,41 @@ func TestUpsertPackage(t *testing.T) {
 	_ = database.QueryRow("SELECT downloads FROM packages WHERE name='akismet'").Scan(&downloads)
 	if downloads != 2000 {
 		t.Errorf("downloads = %d, want 2000", downloads)
+	}
+}
+
+func TestNormalizeAndStoreVersionsUsesWporgVersion(t *testing.T) {
+	wporgVersion := "10.7.0"
+	pkg := &Package{
+		WporgVersion: &wporgVersion,
+		RawVersions: map[string]string{
+			"10.6.0":    "https://example.com/10.6.0.zip",
+			"10.7.0":    "https://example.com/10.7.0.zip",
+			"10.8.0":    "https://example.com/10.8.0.zip",
+			"dev-trunk": "https://example.com/trunk.zip",
+		},
+	}
+
+	count, err := pkg.NormalizeAndStoreVersions()
+	if err != nil {
+		t.Fatalf("normalizing versions: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("NormalizeAndStoreVersions returned %d entries, want 3", count)
+	}
+	if pkg.CurrentVersion == nil || *pkg.CurrentVersion != "10.7.0" {
+		t.Fatalf("CurrentVersion = %v, want 10.7.0", pkg.CurrentVersion)
+	}
+
+	var versions map[string]string
+	if err := json.Unmarshal([]byte(pkg.VersionsJSON), &versions); err != nil {
+		t.Fatalf("unmarshaling versions: %v", err)
+	}
+	if _, ok := versions["10.8.0"]; ok {
+		t.Fatal("10.8.0 should have been filtered out")
+	}
+	if versions["10.7.0"] == "" {
+		t.Fatal("10.7.0 should remain")
 	}
 }
 
