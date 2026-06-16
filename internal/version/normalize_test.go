@@ -183,6 +183,37 @@ func TestFilterNewerThan(t *testing.T) {
 	}
 }
 
+// TestFilterNewerThanKeepsPreReleases verifies that pre-release tags newer than
+// the stable ceiling are retained (Composer won't auto-select them), while stable
+// tags newer than the ceiling are still dropped.
+func TestFilterNewerThanKeepsPreReleases(t *testing.T) {
+	versions := map[string]string{
+		"3.1.3":       "https://example.com/3.1.3.zip",       // stable ceiling
+		"4.0.0-beta1": "https://example.com/4.0.0-beta1.zip", // newer pre-release — keep
+		"4.0.0":       "https://example.com/4.0.0.zip",       // newer stable — drop
+		"2.3.1-beta2": "https://example.com/2.3.1-beta2.zip", // older pre-release — keep
+		"dev-trunk":   "https://example.com/trunk.zip",
+	}
+
+	got := FilterNewerThan(versions, "3.1.3")
+
+	if _, ok := got["4.0.0"]; ok {
+		t.Error("4.0.0 (stable above ceiling) should have been filtered out")
+	}
+	if _, ok := got["4.0.0-beta1"]; !ok {
+		t.Error("4.0.0-beta1 (pre-release above ceiling) should be retained")
+	}
+	if _, ok := got["2.3.1-beta2"]; !ok {
+		t.Error("2.3.1-beta2 (pre-release below ceiling) should be retained")
+	}
+	if _, ok := got["3.1.3"]; !ok {
+		t.Error("3.1.3 (the ceiling) should be retained")
+	}
+	if _, ok := got["dev-trunk"]; !ok {
+		t.Error("dev-trunk should be retained")
+	}
+}
+
 func TestIsStable(t *testing.T) {
 	stable := []string{"1.0", "1.0.0", "10.6.2", "5.3.2"}
 	for _, v := range stable {

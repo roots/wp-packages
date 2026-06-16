@@ -57,8 +57,13 @@ func NormalizeVersions(versions map[string]string) map[string]string {
 	return result
 }
 
-// FilterNewerThan removes tagged versions newer than maxVersion. dev-trunk is
-// preserved; an invalid maxVersion disables filtering.
+// FilterNewerThan removes stable tagged releases newer than maxVersion. These are
+// typically tags pushed to SVN ahead of the published Stable Tag, which Composer
+// would otherwise resolve as the latest stable release. Pre-release tags newer
+// than maxVersion (e.g. a 4.0.0-beta1 while stable is 3.x) are preserved: Composer
+// never auto-selects them for a normal require, so they only reach users who
+// explicitly opt in to that stability. dev-trunk is always preserved; an invalid
+// maxVersion disables filtering.
 func FilterNewerThan(versions map[string]string, maxVersion string) map[string]string {
 	max := Normalize(maxVersion)
 	if max == "" || max == "dev-trunk" {
@@ -67,7 +72,7 @@ func FilterNewerThan(versions map[string]string, maxVersion string) map[string]s
 
 	result := make(map[string]string, len(versions))
 	for v, url := range versions {
-		if v == "dev-trunk" || Compare(v, max) <= 0 {
+		if v == "dev-trunk" || !IsStable(v) || Compare(v, max) <= 0 {
 			result[v] = url
 		}
 	}
