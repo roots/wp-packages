@@ -15,14 +15,24 @@ import (
 
 const closuresPerPage = 50
 
+// closureSort normalizes the sort query param to a whitelisted value:
+// "closures" (most plugins closed first) or "recent" (default).
+func closureSort(r *http.Request) string {
+	if r.URL.Query().Get("sort") == "closures" {
+		return "closures"
+	}
+	return "recent"
+}
+
 func handleClosures(a *app.App, tmpl *templateSet) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 		if page < 1 {
 			page = 1
 		}
+		sort := closureSort(r)
 
-		events, total, err := packages.GetClosureEvents(r.Context(), a.DB, page, closuresPerPage)
+		events, total, err := packages.GetClosureEvents(r.Context(), a.DB, sort, page, closuresPerPage)
 		if err != nil {
 			a.Logger.Error("querying closure events", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -34,6 +44,7 @@ func handleClosures(a *app.App, tmpl *templateSet) http.HandlerFunc {
 			"CDNURL":     a.Config.R2.CDNPublicURL,
 			"OGImage":    ogImageURL(a.Config, "social/closures.png"),
 			"Events":     events,
+			"Sort":       sort,
 			"Page":       page,
 			"PerPage":    closuresPerPage,
 			"TotalPages": totalPages(total, closuresPerPage),
@@ -82,8 +93,9 @@ func handleAPIClosures(a *app.App) http.HandlerFunc {
 		if page < 1 {
 			page = 1
 		}
+		sort := closureSort(r)
 
-		events, total, err := packages.GetClosureEvents(r.Context(), a.DB, page, closuresPerPage)
+		events, total, err := packages.GetClosureEvents(r.Context(), a.DB, sort, page, closuresPerPage)
 		if err != nil {
 			a.Logger.Error("api: querying closure events", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -94,6 +106,7 @@ func handleAPIClosures(a *app.App) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"events":            formatEvents(events),
+			"sort":              sort,
 			"page":              page,
 			"per_page":          closuresPerPage,
 			"total":             total,
@@ -229,7 +242,7 @@ func handleClosuresFeed(a *app.App) http.HandlerFunc {
 		cache.mu.RUnlock()
 
 		if !fresh {
-			events, _, err := packages.GetClosureEvents(r.Context(), a.DB, 1, closuresPerPage)
+			events, _, err := packages.GetClosureEvents(r.Context(), a.DB, "recent", 1, closuresPerPage)
 			if err != nil {
 				a.Logger.Error("querying closure events for feed", "error", err)
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)

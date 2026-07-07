@@ -42,6 +42,18 @@ An event is recorded when <strong>2 or more plugins</strong> from the same vendo
 <div class="max-w-4xl">
 
 {{if .Events}}
+<form method="GET" action="/closures" class="flex justify-end mb-4">
+<label for="closures-sort" class="sr-only">Sort by</label>
+<div class="relative">
+<svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5"/></svg>
+<select id="closures-sort" name="sort" data-autosubmit class="h-10 pl-9 pr-8 text-sm border border-gray-200 rounded-lg bg-white select-chevron focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary">
+<option value="recent"{{if eq .Sort "recent"}} selected{{end}}>Most recent</option>
+<option value="closures"{{if eq .Sort "closures"}} selected{{end}}>Most closures</option>
+</select>
+</div>
+<button type="submit" class="sr-only">Sort</button>
+</form>
+
 <div class="rounded-xl border border-gray-200/60 overflow-hidden">
 <ul role="list" class="divide-y divide-gray-200/60">
 {{range .Events}}
@@ -78,9 +90,9 @@ Detected {{timeAgo (.DetectedAt.Format "2006-01-02T15:04:05Z")}}
 
 {{if gt .TotalPages 1}}
 <div class="flex justify-center items-center gap-1 pt-8">
-{{if gt .Page 1}}<a href="/closures?page={{sub .Page 1}}" class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>Previous</a>{{else}}<span class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-300 cursor-default"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>Previous</span>{{end}}
-{{range pageRange .Page .TotalPages}}{{if eq . 0}}<span class="min-w-9 h-9 px-2 inline-flex items-center justify-center text-sm text-gray-400">...</span>{{else if eq . $.Page}}<span class="min-w-9 h-9 px-2 inline-flex items-center justify-center border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50">{{.}}</span>{{else}}<a href="/closures?page={{.}}" class="min-w-9 h-9 px-2 inline-flex items-center justify-center border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer">{{.}}</a>{{end}}{{end}}
-{{if lt .Page .TotalPages}}<a href="/closures?page={{add .Page 1}}" class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer">Next<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></a>{{else}}<span class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-300 cursor-default">Next<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></span>{{end}}
+{{if gt .Page 1}}<a href="/closures?page={{sub .Page 1}}{{if eq $.Sort "closures"}}&sort=closures{{end}}" class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>Previous</a>{{else}}<span class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-300 cursor-default"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>Previous</span>{{end}}
+{{range pageRange .Page .TotalPages}}{{if eq . 0}}<span class="min-w-9 h-9 px-2 inline-flex items-center justify-center text-sm text-gray-400">...</span>{{else if eq . $.Page}}<span class="min-w-9 h-9 px-2 inline-flex items-center justify-center border border-gray-200 rounded-lg text-sm font-medium text-gray-900 bg-gray-50">{{.}}</span>{{else}}<a href="/closures?page={{.}}{{if eq $.Sort "closures"}}&sort=closures{{end}}" class="min-w-9 h-9 px-2 inline-flex items-center justify-center border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer">{{.}}</a>{{end}}{{end}}
+{{if lt .Page .TotalPages}}<a href="/closures?page={{add .Page 1}}{{if eq $.Sort "closures"}}&sort=closures{{end}}" class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer">Next<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></a>{{else}}<span class="inline-flex items-center gap-1 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-300 cursor-default">Next<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></span>{{end}}
 </div>
 {{end}}
 

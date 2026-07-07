@@ -645,3 +645,101 @@ func TestAllocateSyncRunID(t *testing.T) {
 		t.Errorf("status = %q, want completed", status)
 	}
 }
+
+func setupClosureEventsTable(t *testing.T, database *sql.DB) {
+	t.Helper()
+	_, err := database.Exec(`
+		CREATE TABLE closure_events (
+			id INTEGER PRIMARY KEY,
+			vendor_name TEXT NOT NULL,
+			vendor_slug TEXT NOT NULL,
+			detected_at DATETIME NOT NULL,
+			plugin_slugs TEXT NOT NULL,
+			plugin_count INTEGER NOT NULL
+		)`)
+	if err != nil {
+		t.Fatalf("creating closure_events table: %v", err)
+	}
+}
+
+func TestGetClosureEventsSort(t *testing.T) {
+	database := setupTestDB(t)
+	setupClosureEventsTable(t, database)
+	ctx := context.Background()
+
+	rows := []struct {
+		vendor   string
+		detected string
+		count    int
+	}{
+		{"Alpha", "2026-01-01T00:00:00Z", 5},
+		{"Beta", "2026-02-01T00:00:00Z", 20},
+		{"Gamma", "2026-03-01T00:00:00Z", 10},
+	}
+	for _, r := range rows {
+		_, err := database.Exec(
+			`INSERT INTO closure_events (vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count)
+			 VALUES (?, ?, ?, '["a","b"]', ?)`,
+			r.vendor, r.vendor, r.detected, r.count)
+		if err != nil {
+			t.Fatalf("inserting closure event: %v", err)
+		}
+	}
+
+	assertOrder := func(sort string, want []string) {
+		t.Helper()
+		events, total, err := GetClosureEvents(ctx, database, sort, 1, 10)
+		if err != nil {
+			t.Fatalf("GetClosureEvents(%q): %v", sort, err)
+		}
+		if total != 3 {
+			t.Errorf("total = %d, want 3", total)
+		}
+		var got []string
+		for _, e := range events {
+			got = append(got, e.VendorName)
+		}
+		if len(got) != len(want) {
+			t.Fatalf("sort %q: got %v, want %v", sort, got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("sort %q: got %v, want %v", sort, got, want)
+			}
+		}
+	}
+
+	assertOrder("recent", []string{"Gamma", "Beta", "Alpha"})
+	assertOrder("", []string{"Gamma", "Beta", "Alpha"})
+	assertOrder("closures", []string{"Beta", "Gamma", "Alpha"})
+}
+
+func TestGetClosureEventsSortTiesBreakByRecency(t *testing.T) {
+	database := setupTestDB(t)
+	setupClosureEventsTable(t, database)
+	ctx := context.Background()
+
+	for _, r := range []struct {
+		vendor   string
+		detected string
+	}{
+		{"Older", "2026-01-01T00:00:00Z"},
+		{"Newer", "2026-02-01T00:00:00Z"},
+	} {
+		_, err := database.Exec(
+			`INSERT INTO closure_events (vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count)
+			 VALUES (?, ?, ?, '["a","b"]', 7)`,
+			r.vendor, r.vendor, r.detected)
+		if err != nil {
+			t.Fatalf("inserting closure event: %v", err)
+		}
+	}
+
+	events, _, err := GetClosureEvents(ctx, database, "closures", 1, 10)
+	if err != nil {
+		t.Fatalf("GetClosureEvents: %v", err)
+	}
+	if len(events) != 2 || events[0].VendorName != "Newer" {
+		t.Errorf("expected Newer first on equal plugin_count, got %+v", events)
+	}
+}

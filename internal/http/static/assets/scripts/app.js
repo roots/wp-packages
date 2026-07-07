@@ -156,6 +156,12 @@
     }
   });
 
+  document.addEventListener('change', (e) => {
+    const t = e.target.closest('[data-autosubmit]');
+    if (!t || !t.form) return;
+    t.form.submit();
+  });
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       const t = e.target.closest && e.target.closest('[data-toggle-next]');
