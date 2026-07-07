@@ -622,7 +622,8 @@ func handleClosuresMD(a *app.App, appURL string) http.HandlerFunc {
 		if page < 1 {
 			page = 1
 		}
-		events, total, err := packages.GetClosureEvents(r.Context(), a.DB, page, closuresPerPage)
+		sort := closureSort(r)
+		events, total, err := packages.GetClosureEvents(r.Context(), a.DB, sort, page, closuresPerPage)
 		if err != nil {
 			a.Logger.Error("querying closure events for markdown", "error", err)
 			captureError(r, err)
@@ -631,12 +632,12 @@ func handleClosuresMD(a *app.App, appURL string) http.HandlerFunc {
 		}
 		cleanQuery := extractContentQuery("GET /closures", r.URL.RawQuery)
 		setPaginationLinkHeader(w, page, total, closuresPerPage, "/closures.md", appURL, cleanQuery)
-		body := renderClosuresMarkdown(events, total, page, appURL, cleanQuery)
+		body := renderClosuresMarkdown(events, total, page, sort, appURL, cleanQuery)
 		writeMarkdown(w, body, "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400")
 	}
 }
 
-func renderClosuresMarkdown(events []packages.ClosureEvent, total, page int, appURL, rawQuery string) string {
+func renderClosuresMarkdown(events []packages.ClosureEvent, total, page int, sort, appURL, rawQuery string) string {
 	var b strings.Builder
 	b.WriteString("# WordPress.org Mass Closures\n\n")
 	b.WriteString("History of WordPress.org plugin vendors with multiple closures within a 24-hour rolling window.\n\n")
@@ -645,7 +646,11 @@ func renderClosuresMarkdown(events []packages.ClosureEvent, total, page int, app
 		return b.String()
 	}
 	tp := totalPages(total, closuresPerPage)
-	fmt.Fprintf(&b, "## Events (page %d of %d)\n\n", page, tp)
+	sortLabel := "most recent"
+	if sort == "closures" {
+		sortLabel = "number of closures"
+	}
+	fmt.Fprintf(&b, "## Events (page %d of %d, sorted by %s)\n\n", page, tp, sortLabel)
 	b.WriteString("| Vendor | Plugins closed | Detected |\n")
 	b.WriteString("| --- | ---: | --- |\n")
 	for _, e := range events {

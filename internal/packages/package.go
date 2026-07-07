@@ -117,16 +117,23 @@ type ClosurePluginStatus struct {
 	IsClosed    bool   `json:"is_closed"`
 }
 
-func GetClosureEvents(ctx context.Context, db *sql.DB, page, perPage int) ([]ClosureEvent, int, error) {
+// GetClosureEvents returns a page of closure events. sort "closures" orders
+// by number of plugins closed (largest first); any other value orders by
+// most recently detected.
+func GetClosureEvents(ctx context.Context, db *sql.DB, sort string, page, perPage int) ([]ClosureEvent, int, error) {
 	var total int
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM closure_events").Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
+	orderBy := "detected_at DESC, id DESC"
+	if sort == "closures" {
+		orderBy = "plugin_count DESC, detected_at DESC, id DESC"
+	}
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, vendor_name, vendor_slug, detected_at, plugin_slugs, plugin_count
 		FROM closure_events
-		ORDER BY detected_at DESC, id DESC
+		ORDER BY `+orderBy+`
 		LIMIT ? OFFSET ?`, perPage, (page-1)*perPage)
 	if err != nil {
 		return nil, 0, err
