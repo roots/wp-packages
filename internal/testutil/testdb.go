@@ -95,7 +95,7 @@ func SeedFromFixtures(t *testing.T, database *sql.DB, mockURL string) {
 
 		pkg := packages.PackageFromAPIData(data, p.Type)
 		pkg.ID = p.ID
-		if _, err := pkg.NormalizeAndStoreVersions(); err != nil {
+		if _, _, err := pkg.NormalizeAndStoreVersions(); err != nil {
 			t.Fatalf("normalizing versions for %s: %v", p.Name, err)
 		}
 		now := time.Now().UTC()

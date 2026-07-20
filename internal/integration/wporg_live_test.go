@@ -84,7 +84,7 @@ func TestWpOrgLive(t *testing.T) {
 
 		pkg := packages.PackageFromAPIData(data, p.Type)
 		pkg.ID = p.ID
-		if _, err := pkg.NormalizeAndStoreVersions(); err != nil {
+		if _, _, err := pkg.NormalizeAndStoreVersions(); err != nil {
 			t.Fatalf("normalize %s: %v", p.Name, err)
 		}
 		pkg.LastSyncRunID = &syncRun.RunID

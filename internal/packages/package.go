@@ -68,21 +68,27 @@ type Package struct {
 
 // NormalizeAndStoreVersions normalizes raw versions and serializes to VersionsJSON.
 // It also sets CurrentVersion to the highest published version.
-// Returns the number of valid versions.
-func (p *Package) NormalizeAndStoreVersions() (int, error) {
+// Returns the number of valid versions and whether FilterNewerThan dropped a
+// stable version — i.e. a tag exists above the wp.org stable version, which
+// means a release is likely awaiting directory publication and the package
+// should be re-synced rather than considered up to date.
+func (p *Package) NormalizeAndStoreVersions() (int, bool, error) {
 	if p.RawVersions == nil {
 		p.VersionsJSON = "{}"
-		return 0, nil
+		return 0, false, nil
 	}
 
 	normalized := version.NormalizeVersions(p.RawVersions)
+	pendingStable := false
 	if p.WporgVersion != nil {
+		before := len(normalized)
 		normalized = version.FilterNewerThan(normalized, *p.WporgVersion)
+		pendingStable = len(normalized) < before
 	}
 
 	data, err := json.Marshal(normalized)
 	if err != nil {
-		return 0, fmt.Errorf("marshaling versions: %w", err)
+		return 0, false, fmt.Errorf("marshaling versions: %w", err)
 	}
 	p.VersionsJSON = string(data)
 
@@ -90,7 +96,7 @@ func (p *Package) NormalizeAndStoreVersions() (int, error) {
 		p.CurrentVersion = &latest
 	}
 
-	return len(normalized), nil
+	return len(normalized), pendingStable, nil
 }
 
 func timeStr(t *time.Time) *string {
