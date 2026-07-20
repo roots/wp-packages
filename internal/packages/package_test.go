@@ -172,12 +172,15 @@ func TestNormalizeAndStoreVersionsUsesWporgVersion(t *testing.T) {
 		},
 	}
 
-	count, err := pkg.NormalizeAndStoreVersions()
+	count, pendingStable, err := pkg.NormalizeAndStoreVersions()
 	if err != nil {
 		t.Fatalf("normalizing versions: %v", err)
 	}
 	if count != 3 {
 		t.Fatalf("NormalizeAndStoreVersions returned %d entries, want 3", count)
+	}
+	if !pendingStable {
+		t.Fatal("pendingStable = false, want true (10.8.0 was filtered out)")
 	}
 	if pkg.CurrentVersion == nil || *pkg.CurrentVersion != "10.7.0" {
 		t.Fatalf("CurrentVersion = %v, want 10.7.0", pkg.CurrentVersion)

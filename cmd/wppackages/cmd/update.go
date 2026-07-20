@@ -20,6 +20,12 @@ import (
 // Set high (24h) to account for extended wp.org API cache delays.
 const staleRetryWindow = 24 * time.Hour
 
+// pendingStableRetryWindow is how long to keep retrying a theme whose SVN tags
+// include a stable version above what the wp.org directory reports as current.
+// Theme updates sit in a review queue after the tag lands, routinely for days,
+// so the standard window would expire before the release goes live.
+const pendingStableRetryWindow = 7 * 24 * time.Hour
+
 var updateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Fetch and update package metadata from WordPress.org",
@@ -152,7 +158,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			pkg := packages.PackageFromAPIData(data, p.Type)
 			pkg.ID = p.ID
 
-			validVersions, err := pkg.NormalizeAndStoreVersions()
+			validVersions, pendingStable, err := pkg.NormalizeAndStoreVersions()
 			if err != nil {
 				application.Logger.Warn("version normalization failed", "type", p.Type, "name", p.Name, "error", err)
 				failed.Add(1)
@@ -177,7 +183,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			now := time.Now().UTC()
 			pkg.LastSyncRunID = &syncRun.RunID
 
-			decision := shouldAdvanceSyncedAt(pkg.VersionsJSON, p.VersionsJSON, p.LastCommitted, now)
+			decision := shouldAdvanceSyncedAt(pkg.VersionsJSON, p.VersionsJSON, pendingStable, p.Type, p.LastCommitted, now)
 			if pkg.VersionsJSON != p.VersionsJSON {
 				changed.Add(1)
 			}
@@ -266,14 +272,28 @@ const (
 )
 
 // shouldAdvanceSyncedAt decides whether to advance last_synced_at after an update.
-// If versions changed, always advance. If unchanged, keep dirty within the retry
-// window to handle wp.org API cache delays. After the window, advance to avoid
-// infinite retries from non-version SVN changes (readme, assets).
-func shouldAdvanceSyncedAt(newVersions, oldVersions string, lastCommitted *time.Time, now time.Time) syncDecision {
+// A pending stable release (a tag above the wp.org stable version, awaiting
+// directory publication) keeps the package dirty within its retry window even
+// when versions changed — the change may be an incidental catch-up from an
+// earlier commit, and advancing would strand the package on the old version
+// once the release goes live. Otherwise: if versions changed, advance; if
+// unchanged, keep dirty within the retry window to handle wp.org API cache
+// delays, then advance to avoid infinite retries from non-version SVN changes
+// (readme, assets).
+func shouldAdvanceSyncedAt(newVersions, oldVersions string, pendingStable bool, pkgType string, lastCommitted *time.Time, now time.Time) syncDecision {
+	window := staleRetryWindow
+	if pendingStable && pkgType == "theme" {
+		window = pendingStableRetryWindow
+	}
+	withinWindow := lastCommitted != nil && now.Sub(*lastCommitted) <= window
+
+	if pendingStable && withinWindow {
+		return syncRetry
+	}
 	if newVersions != oldVersions {
 		return syncAdvance
 	}
-	if lastCommitted != nil && now.Sub(*lastCommitted) <= staleRetryWindow {
+	if withinWindow {
 		return syncRetry
 	}
 	return syncExpire
