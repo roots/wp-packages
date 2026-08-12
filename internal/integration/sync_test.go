@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
@@ -152,15 +151,4 @@ func TestR2Sync(t *testing.T) {
 	if secondSyncCount != firstSyncCount {
 		t.Errorf("second sync changed object count: %d -> %d", firstSyncCount, secondSyncCount)
 	}
-}
-
-func newTestS3Client(endpoint string) *s3.Client {
-	return s3.New(s3.Options{
-		Region: "auto",
-		Credentials: credentials.NewStaticCredentialsProvider(
-			"test", "test", "",
-		),
-		BaseEndpoint: aws.String(endpoint),
-		UsePathStyle: true,
-	})
 }

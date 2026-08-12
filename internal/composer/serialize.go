@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/roots/wp-packages/internal/version"
@@ -60,21 +59,33 @@ func ObjectKeys(pkgType, name string) []string {
 	}
 }
 
-// HashVersions computes a content hash over the normalized versions_json and
-// trunk_revision. trunk_revision is included because it affects the serialized
-// dev-trunk output (source.reference includes trunk@<rev>) even though it's
-// not part of versions_json.
+// HashContent computes a content hash over the exact bytes a package serializes
+// to, including the object keys those bytes are uploaded under.
 //
-// versionsJSON is already deterministic — json.Marshal sorts map keys, and
-// NormalizeAndStoreVersions always produces the same output for the same input.
-// So we hash the string directly rather than round-tripping through parse/sort.
-func HashVersions(versionsJSON string, trunkRevision *int64) string {
-	h := sha256.New()
-	h.Write([]byte(versionsJSON))
-	if trunkRevision != nil {
-		h.Write([]byte(strconv.FormatInt(*trunkRevision, 10)))
+// Hashing the serialized output rather than its inputs is what makes the sync
+// step's diff query correct: "content_hash changed" and "the files on R2 are
+// stale" become the same statement by construction. Hashing inputs instead
+// (versions_json + trunk_revision, as this did originally) silently misses
+// every field that reaches the output by another route — description, homepage,
+// author, and last_committed all land in the serialized entry via PackageMeta,
+// so a readme-only wp.org commit would leave R2 permanently stale.
+//
+// Keys are included so that a type change or rename also marks the package
+// dirty. The 0x00 separators keep key/data boundaries unambiguous.
+func HashContent(pkgType, name, versionsJSON string, meta PackageMeta) (string, error) {
+	files, err := PackageFiles(pkgType, name, versionsJSON, meta)
+	if err != nil {
+		return "", err
 	}
-	return fmt.Sprintf("%x", h.Sum(nil))
+
+	h := sha256.New()
+	for _, f := range files {
+		h.Write([]byte(f.Key))
+		h.Write([]byte{0})
+		h.Write(f.Data)
+		h.Write([]byte{0})
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
 // SerializePackage produces the Composer p2 JSON for a single package file.

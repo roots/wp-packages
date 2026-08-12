@@ -172,8 +172,22 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			// Carry forward trunk_revision from DB (set by discover step)
 			pkg.TrunkRevision = p.TrunkRevision
 
-			// Compute content hash over normalized versions + trunk_revision
-			newHash := composer.HashVersions(pkg.VersionsJSON, pkg.TrunkRevision)
+			// UpsertPackage keeps the greater of the stored and incoming
+			// last_committed. Mirror that here so the hash is computed over the
+			// value that will actually be in the row — otherwise a wp.org
+			// last_updated that moves backwards produces a hash the sync step
+			// can never satisfy, and the package re-uploads on every run.
+			if p.LastCommitted != nil && (pkg.LastCommitted == nil || pkg.LastCommitted.Before(*p.LastCommitted)) {
+				pkg.LastCommitted = p.LastCommitted
+			}
+
+			// Hash the serialized output, not its inputs — see composer.HashContent.
+			newHash, err := composer.HashContent(pkg.Type, pkg.Name, pkg.VersionsJSON, pkg.ComposerMeta())
+			if err != nil {
+				application.Logger.Warn("content hash failed", "type", p.Type, "name", p.Name, "error", err)
+				failed.Add(1)
+				return nil
+			}
 			pkg.ContentHash = &newHash
 			if p.ContentHash == nil || *p.ContentHash != newHash {
 				now := time.Now().UTC()

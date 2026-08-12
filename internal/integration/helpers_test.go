@@ -12,7 +12,23 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
+
+// newTestS3Client builds an S3 client pointed at an in-process gofakes3 server.
+func newTestS3Client(endpoint string) *s3.Client {
+	return s3.New(s3.Options{
+		Region: "auto",
+		Credentials: credentials.NewStaticCredentialsProvider(
+			"test", "test", "",
+		),
+		BaseEndpoint: aws.String(endpoint),
+		UsePathStyle: true,
+	})
+}
 
 func testLogger(t *testing.T) *slog.Logger {
 	t.Helper()

@@ -512,27 +512,20 @@ func GetPackagesNeedingUpdate(ctx context.Context, db *sql.DB, opts UpdateQueryO
 	return pkgs, rows.Err()
 }
 
-// GetDirtyPackages returns active packages whose content_hash differs from deployed_hash.
-func GetDirtyPackages(ctx context.Context, db *sql.DB) ([]*Package, error) {
-	rows, err := db.QueryContext(ctx, `
-		SELECT id, type, name, versions_json, content_hash,
-			description, homepage, author, last_committed, trunk_revision
-		FROM packages
-		WHERE is_active = 1
-			AND content_hash IS NOT NULL
-			AND (deployed_hash IS NULL OR content_hash != deployed_hash)`)
-	if err != nil {
-		return nil, fmt.Errorf("querying dirty packages: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
+// serializableColumns are the fields needed to serialize a package's Composer
+// output — everything ComposerMeta reads, plus the versions themselves.
+const serializableColumns = `id, type, name, versions_json, content_hash,
+	description, homepage, author, last_committed, trunk_revision`
 
+// scanSerializable reads rows selected with serializableColumns.
+func scanSerializable(rows *sql.Rows, what string) ([]*Package, error) {
 	var pkgs []*Package
 	for rows.Next() {
 		var p Package
 		var lastCommitted *string
 		if err := rows.Scan(&p.ID, &p.Type, &p.Name, &p.VersionsJSON, &p.ContentHash,
 			&p.Description, &p.Homepage, &p.Author, &lastCommitted, &p.TrunkRevision); err != nil {
-			return nil, fmt.Errorf("scanning dirty package: %w", err)
+			return nil, fmt.Errorf("scanning %s: %w", what, err)
 		}
 		if lastCommitted != nil {
 			if t, err := time.Parse(time.RFC3339, *lastCommitted); err == nil {
@@ -542,6 +535,55 @@ func GetDirtyPackages(ctx context.Context, db *sql.DB) ([]*Package, error) {
 		pkgs = append(pkgs, &p)
 	}
 	return pkgs, rows.Err()
+}
+
+// GetDirtyPackages returns active packages whose content_hash differs from deployed_hash.
+//
+// Rows with a NULL content_hash are excluded — there is nothing to compare — which
+// means they are never uploaded. CountUnhashedActive reports how many such rows
+// exist so the sync step can surface them instead of silently skipping; `rehash`
+// clears them.
+func GetDirtyPackages(ctx context.Context, db *sql.DB) ([]*Package, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT `+serializableColumns+`
+		FROM packages
+		WHERE is_active = 1
+			AND content_hash IS NOT NULL
+			AND (deployed_hash IS NULL OR content_hash != deployed_hash)`)
+	if err != nil {
+		return nil, fmt.Errorf("querying dirty packages: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	return scanSerializable(rows, "dirty package")
+}
+
+// GetAllActiveForHashing returns every active package with the fields needed to
+// recompute its content hash. Used by the rehash command.
+func GetAllActiveForHashing(ctx context.Context, db *sql.DB) ([]*Package, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT `+serializableColumns+`
+		FROM packages
+		WHERE is_active = 1
+		ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("querying active packages: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	return scanSerializable(rows, "active package")
+}
+
+// CountUnhashedActive returns the number of active packages with no content_hash.
+// These are invisible to GetDirtyPackages and will never be synced to R2.
+func CountUnhashedActive(ctx context.Context, db *sql.DB) (int, error) {
+	var n int
+	err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM packages WHERE is_active = 1 AND content_hash IS NULL`).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("counting unhashed active packages: %w", err)
+	}
+	return n, nil
 }
 
 // GetDeactivatedDeployedPackages returns inactive packages that still have a deployed_hash

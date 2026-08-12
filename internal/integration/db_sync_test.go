@@ -28,17 +28,17 @@ func backfillContentHashes(t *testing.T, database *sql.DB) {
 	t.Helper()
 	ctx := context.Background()
 
-	pkgs, err := packages.GetPackagesNeedingUpdate(ctx, database, packages.UpdateQueryOpts{
-		Force: true,
-		Type:  "all",
-	})
+	pkgs, err := packages.GetAllActiveForHashing(ctx, database)
 	if err != nil {
 		t.Fatalf("getting packages for hash backfill: %v", err)
 	}
 
 	for _, p := range pkgs {
-		hash := composer.HashVersions(p.VersionsJSON, p.TrunkRevision)
-		_, err := database.ExecContext(ctx,
+		hash, err := composer.HashContent(p.Type, p.Name, p.VersionsJSON, p.ComposerMeta())
+		if err != nil {
+			t.Fatalf("hashing %s/%s: %v", p.Type, p.Name, err)
+		}
+		_, err = database.ExecContext(ctx,
 			`UPDATE packages SET content_hash = ? WHERE id = ?`, hash, p.ID)
 		if err != nil {
 			t.Fatalf("backfilling hash for %s/%s: %v", p.Type, p.Name, err)
@@ -81,7 +81,7 @@ func TestDBDrivenSync(t *testing.T) {
 	}
 
 	// 3. First sync — all packages should be uploaded
-	result, err := deploy.Sync(ctx, db, r2Cfg, "http://test.local", testLogger(t))
+	result, err := deploy.Sync(ctx, db, r2Cfg, "http://test.local", deploy.SyncOptions{}, testLogger(t))
 	if err != nil {
 		t.Fatalf("first sync failed: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestDBDrivenSync(t *testing.T) {
 	}
 
 	// 4. Second sync — idempotent, nothing to upload
-	result2, err := deploy.Sync(ctx, db, r2Cfg, "http://test.local", testLogger(t))
+	result2, err := deploy.Sync(ctx, db, r2Cfg, "http://test.local", deploy.SyncOptions{}, testLogger(t))
 	if err != nil {
 		t.Fatalf("second sync failed: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestDBDrivenSync(t *testing.T) {
 		t.Fatalf("deactivating akismet: %v", err)
 	}
 
-	result3, err := deploy.Sync(ctx, db, r2Cfg, "http://test.local", testLogger(t))
+	result3, err := deploy.Sync(ctx, db, r2Cfg, "http://test.local", deploy.SyncOptions{}, testLogger(t))
 	if err != nil {
 		t.Fatalf("sync after deactivation failed: %v", err)
 	}
