@@ -481,6 +481,75 @@ func TestReactivatePackage(t *testing.T) {
 	}
 }
 
+// TestReactivatedPackageIsRequeued covers the closure/reopen lifecycle that
+// stranded a batch of plugins at their pre-closure versions: a package is
+// deactivated while wp.org has it closed, releases are tagged in SVN during
+// that window, and the package is later reopened. MarkPackagesChanged only
+// touches active rows, so those commits are lost and last_committed stays
+// behind last_synced_at. Reactivation must therefore clear last_synced_at,
+// otherwise the row looks permanently up to date and never re-syncs.
+func TestReactivatedPackageIsRequeued(t *testing.T) {
+	database := setupTestDB(t)
+	ctx := context.Background()
+
+	committed := time.Date(2026, 3, 23, 0, 0, 0, 0, time.UTC)
+	synced := time.Date(2026, 3, 26, 0, 0, 0, 0, time.UTC)
+	if err := UpsertPackage(ctx, database, &Package{
+		Type: "plugin", Name: "closed-then-reopened", VersionsJSON: `{"1.0.0":"url"}`,
+		IsActive: true, LastCommitted: &committed, LastSyncedAt: &synced,
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	var id int64
+	if err := database.QueryRow("SELECT id FROM packages WHERE name='closed-then-reopened'").Scan(&id); err != nil {
+		t.Fatalf("select id: %v", err)
+	}
+
+	// wp.org closes the plugin; check-status deactivates it.
+	if err := DeactivatePackage(ctx, database, id); err != nil {
+		t.Fatalf("deactivate: %v", err)
+	}
+
+	// A release is tagged in SVN while the package is inactive. The changelog
+	// scan sees the slug but MarkPackagesChanged filters on is_active = 1, so
+	// the commit is silently dropped and last_committed does not advance.
+	affected, err := MarkPackagesChanged(ctx, database, "plugin", map[string]int64{"closed-then-reopened": 3613892})
+	if err != nil {
+		t.Fatalf("mark changed: %v", err)
+	}
+	if affected != 0 {
+		t.Fatalf("MarkPackagesChanged affected %d rows, want 0 (package is inactive)", affected)
+	}
+
+	// wp.org reopens the plugin; check-status reactivates it.
+	if err := ReactivatePackage(ctx, database, id); err != nil {
+		t.Fatalf("reactivate: %v", err)
+	}
+
+	var lastSyncedAt *string
+	if err := database.QueryRow("SELECT last_synced_at FROM packages WHERE id=?", id).Scan(&lastSyncedAt); err != nil {
+		t.Fatalf("select last_synced_at: %v", err)
+	}
+	if lastSyncedAt != nil {
+		t.Errorf("last_synced_at = %q after reactivation, want NULL", *lastSyncedAt)
+	}
+
+	pkgs, err := GetPackagesNeedingUpdate(ctx, database, UpdateQueryOpts{})
+	if err != nil {
+		t.Fatalf("querying packages needing update: %v", err)
+	}
+	var found bool
+	for _, p := range pkgs {
+		if p.Name == "closed-then-reopened" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("reactivated package should be queued for update")
+	}
+}
+
 func TestBatchUpsertShellPackages(t *testing.T) {
 	database := setupTestDB(t)
 	ctx := context.Background()
