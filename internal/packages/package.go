@@ -595,11 +595,20 @@ func MarkPermanentlyClosed(ctx context.Context, db *sql.DB, id int64) error {
 	return nil
 }
 
-// ReactivatePackage sets is_active = 1 for a package.
+// ReactivatePackage sets is_active = 1 for a package and clears last_synced_at
+// so the next update re-syncs it.
+//
+// While a package is inactive, MarkPackagesChanged skips it (it filters on
+// is_active = 1), so every SVN commit landing in that window is discarded and
+// last_committed never advances. Reactivating without clearing the sync state
+// would leave last_committed <= last_synced_at — permanently "clean" — and the
+// package would sit at its pre-closure versions until its next release happened
+// to be committed. GetPackagesNeedingUpdate treats a NULL last_synced_at as
+// needing an update and orders those first.
 func ReactivatePackage(ctx context.Context, db *sql.DB, id int64) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := db.ExecContext(ctx,
-		`UPDATE packages SET is_active = 1, updated_at = ?, content_changed_at = ? WHERE id = ?`,
+		`UPDATE packages SET is_active = 1, last_synced_at = NULL, updated_at = ?, content_changed_at = ? WHERE id = ?`,
 		now, now, id,
 	)
 	if err != nil {
