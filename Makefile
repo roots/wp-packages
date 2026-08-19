@@ -1,4 +1,4 @@
-.PHONY: build install dev test integration lint clean tailwind db-restore venv
+.PHONY: build install dev test integration lint clean tailwind db-restore venv go.mod
 
 VAULT_FILE ?= deploy/ansible/group_vars/production/vault.yml
 
@@ -80,3 +80,10 @@ db-restore: venv
 clean:
 	rm -f wppackages
 	rm -rf storage/
+
+# Update Go modules
+go.mod:
+	go get -u -t -tags=integration,wporg_live ./...
+	go mod tidy
+
+go.sum: go.mod
