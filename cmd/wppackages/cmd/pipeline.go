@@ -137,9 +137,6 @@ type stepDurations struct {
 // and runBuild can persist whatever step timings were captured before failure.
 var pipelineStepDurations stepDurations
 
-//go:fix inline
-func intPtr(v int) *int { return new(v) }
-
 func executePipelineSteps(cmd *cobra.Command, ctx context.Context, skipDiscover, skipDeploy bool, discoverSource string) error {
 	pipelineStepDurations = stepDurations{}
 
