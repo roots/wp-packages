@@ -119,7 +119,7 @@ func TestLogin_ThrottlesRepeatedFailures(t *testing.T) {
 	handler := handleLogin(a)
 
 	form := url.Values{"email": {"wrong@example.com"}, "password": {"wrong"}}
-	for i := 0; i < maxFailedLoginAttempts; i++ {
+	for i := range maxFailedLoginAttempts {
 		req := httptest.NewRequest("POST", "/admin/login", strings.NewReader(form.Encode()))
 		req.RemoteAddr = "203.0.113.10:12345"
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

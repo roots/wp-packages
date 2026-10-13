@@ -10,7 +10,7 @@ import (
 func TestAPIRateLimiter_AllowsUnderLimit(t *testing.T) {
 	l := newAPIRateLimiter()
 
-	for i := 0; i < apiRateLimitPerIP; i++ {
+	for i := range apiRateLimitPerIP {
 		if !l.limiterFor("1.2.3.4").Allow() {
 			t.Fatalf("request %d should be allowed", i+1)
 		}
@@ -20,7 +20,7 @@ func TestAPIRateLimiter_AllowsUnderLimit(t *testing.T) {
 func TestAPIRateLimiter_BlocksOverLimit(t *testing.T) {
 	l := newAPIRateLimiter()
 
-	for i := 0; i < apiRateLimitPerIP; i++ {
+	for range apiRateLimitPerIP {
 		l.limiterFor("1.2.3.4").Allow()
 	}
 
@@ -33,7 +33,7 @@ func TestAPIRateLimiter_IndependentPerIP(t *testing.T) {
 	l := newAPIRateLimiter()
 
 	// Exhaust limit for one IP
-	for i := 0; i < apiRateLimitPerIP; i++ {
+	for range apiRateLimitPerIP {
 		l.limiterFor("1.2.3.4").Allow()
 	}
 
@@ -70,7 +70,7 @@ func TestAPIRateLimiter_Middleware(t *testing.T) {
 	handler := l.RateLimit(inner)
 
 	// Use varying source ports to verify the middleware normalizes to IP only.
-	for i := 0; i < apiRateLimitPerIP+2; i++ {
+	for i := range apiRateLimitPerIP + 2 {
 		req := httptest.NewRequest("GET", "/api/stats", nil)
 		req.RemoteAddr = fmt.Sprintf("10.0.0.1:%d", 10000+i)
 		w := httptest.NewRecorder()

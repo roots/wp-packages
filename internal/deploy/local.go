@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"time"
 )
@@ -47,9 +48,9 @@ func Rollback(repoDir, targetID string, logger *slog.Logger) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		for i := len(builds) - 1; i >= 0; i-- {
-			if builds[i] != currentID {
-				targetID = builds[i]
+		for _, build := range slices.Backward(builds) {
+			if build != currentID {
+				targetID = build
 				break
 			}
 		}

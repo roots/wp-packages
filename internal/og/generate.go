@@ -144,9 +144,7 @@ func GenerateAll(ctx context.Context, db *sql.DB, uploader *Uploader, logger *sl
 	// Render + upload concurrently.
 	var wg sync.WaitGroup
 	for range uploadConcurrency {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for pkg := range ch {
 				data := PackageData{
 					DisplayName:        pkg.DisplayName,
@@ -178,22 +176,20 @@ func GenerateAll(ctx context.Context, db *sql.DB, uploader *Uploader, logger *sl
 					logger.Info("OG generation progress", "generated", n, "total", len(work))
 				}
 			}
-		}()
+		})
 	}
 
 	// Serial DB writer to avoid SQLite contention.
 	var dbErrors atomic.Int64
 	var dbWg sync.WaitGroup
-	dbWg.Add(1)
-	go func() {
-		defer dbWg.Done()
+	dbWg.Go(func() {
 		for u := range updates {
 			if err := markOGGenerated(ctx, db, u.id, u.installs, u.wpInstalls); err != nil {
 				logger.Error("marking OG generated", "id", u.id, "error", err)
 				dbErrors.Add(1)
 			}
 		}
-	}()
+	})
 
 	for _, pkg := range work {
 		if ctx.Err() != nil {

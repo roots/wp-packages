@@ -35,12 +35,12 @@ func Parse(header string) []Entry {
 		}
 		q := 1.0
 		for _, p := range segments[1:] {
-			eq := strings.IndexByte(p, '=')
-			if eq < 0 {
+			before, after, ok := strings.Cut(p, "=")
+			if !ok {
 				continue
 			}
-			name := strings.TrimSpace(p[:eq])
-			value := strings.TrimSpace(p[eq+1:])
+			name := strings.TrimSpace(before)
+			value := strings.TrimSpace(after)
 			if name == "q" {
 				if parsed, err := strconv.ParseFloat(value, 64); err == nil {
 					if parsed < 0 {

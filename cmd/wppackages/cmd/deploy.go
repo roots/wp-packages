@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -67,9 +68,9 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return err
 			}
-			for i := len(builds) - 1; i >= 0; i-- {
-				if builds[i] != currentID {
-					target = builds[i]
+			for _, build := range slices.Backward(builds) {
+				if build != currentID {
+					target = build
 					break
 				}
 			}
