@@ -25,6 +25,17 @@ func acquirePipelineLock() error {
 	return acquireLock(lockPath)
 }
 
+// ensurePipelineLock takes the pipeline lock for a command run on its own, so
+// it can't interleave with a scheduled pipeline (e.g. a manual update writing
+// back published times that discover just reset). When the command runs as a
+// pipeline step, this process already holds the lock.
+func ensurePipelineLock() error {
+	if pipelineLockFile != nil {
+		return nil
+	}
+	return acquirePipelineLock()
+}
+
 // acquireLock acquires an exclusive file lock at lockPath.
 func acquireLock(lockPath string) error {
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)

@@ -46,15 +46,34 @@ func IsValid(v string) bool {
 
 // NormalizeVersions filters and normalizes a version map (version -> download URL),
 // returning only entries with valid versions.
+//
+// When several raw versions normalize to the same key (e.g. "1.0" and "v1.0"),
+// the one already in normalized form wins, otherwise the lexically smallest,
+// so the chosen download URL doesn't flip between runs.
 func NormalizeVersions(versions map[string]string) map[string]string {
 	result := make(map[string]string, len(versions))
+	chosen := make(map[string]string, len(versions))
 	for v, url := range versions {
 		normalized := Normalize(v)
-		if normalized != "" {
-			result[normalized] = url
+		if normalized == "" {
+			continue
 		}
+		if prev, ok := chosen[normalized]; ok && !preferRawVersion(v, prev, normalized) {
+			continue
+		}
+		chosen[normalized] = v
+		result[normalized] = url
 	}
 	return result
+}
+
+// preferRawVersion reports whether raw version candidate should win over
+// current for the same normalized key.
+func preferRawVersion(candidate, current, normalized string) bool {
+	if (candidate == normalized) != (current == normalized) {
+		return candidate == normalized
+	}
+	return candidate < current
 }
 
 // FilterNewerThan removes stable tagged releases newer than maxVersion. These are

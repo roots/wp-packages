@@ -155,6 +155,25 @@ func TestNormalizeVersions(t *testing.T) {
 	}
 }
 
+func TestNormalizeVersionsCollisionIsDeterministic(t *testing.T) {
+	// Both normalize to 1.0; the tag already in normalized form wins, and
+	// otherwise the lexically smallest raw tag, regardless of map order.
+	for i := 0; i < 50; i++ {
+		got := NormalizeVersions(map[string]string{
+			"v1.0": "https://example.com/v1.0.zip",
+			"1.0":  "https://example.com/1.0.zip",
+			"V2.0": "https://example.com/V2.0.zip",
+			"v2.0": "https://example.com/v2.0.zip",
+		})
+		if got["1.0"] != "https://example.com/1.0.zip" {
+			t.Fatalf("1.0 = %q, want the exact-match tag's URL", got["1.0"])
+		}
+		if got["2.0"] != "https://example.com/V2.0.zip" {
+			t.Fatalf("2.0 = %q, want the lexically smallest tag's URL", got["2.0"])
+		}
+	}
+}
+
 func TestFilterNewerThan(t *testing.T) {
 	versions := map[string]string{
 		"10.6.0":    "https://example.com/10.6.0.zip",

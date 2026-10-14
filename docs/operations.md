@@ -31,7 +31,7 @@ wppackages discover --source=config --type=plugin --limit=100
 ```
 
 - `--source=svn` for full WordPress.org directory discovery.
-- `--source=config` for curated seed lists.
+- `--source=config` for curated seed lists. It doesn't read the SVN changelog, so changed tags don't reset `published-time`; production must use `--source=svn`.
 - `--type plugin|theme|all` to filter by package type.
 - `--concurrency` to control parallel fetches.
 
@@ -44,6 +44,7 @@ wppackages update --include-inactive
 ```
 
 - Fetches full package payloads from WordPress.org and normalizes versions.
+- `update` and `discover` take the pipeline lock when run on their own, so they fail fast instead of interleaving with a running pipeline.
 - Stamps `last_sync_run_id` for snapshot-consistent builds.
 - `--force` re-fetches even if package hasn't changed.
 - `--concurrency` to control parallel fetches.
@@ -88,6 +89,17 @@ wppackages pipeline --discover-source=config
 ```
 
 Runs discover → update → build → deploy sequentially, stopping on failure. After a successful deploy, automatically cleans up old local builds (keeps 5 most recent). Cleanup is best-effort — failures are logged as warnings but do not fail the pipeline.
+
+### Backfill Published Times
+
+```bash
+wppackages backfill-published-times
+wppackages backfill-published-times --days=30 --type=plugin
+```
+
+One-time step after deploying migration 031. Populates `published_times_json` (served as Composer's `published-time`, used by the Composer 2.11+ cooldown policy) for packages that don't have it yet. Scans the SVN changelog backwards from the current SVN head for `--days` (default 30): versions whose tag (or whole tags directory) was created or changed in that window get that commit date, all others get the start of the window. Each chunk must contain every revision in its range; if the changelog endpoint lags or truncates, the run fails and can simply be rerun. `--chunk-size` is capped at 50000, the per-request log limit. Until a package is backfilled, `update` leaves its published times unset and its metadata omits `published-time`.
+
+Runs under the pipeline lock and recomputes `content_hash`, so the next pipeline deploy re-uploads every synced package to R2. Stop `wppackages-pipeline.timer` for the duration (a 30-day plugin scan downloads over a GB of changelog); otherwise each scheduled run fails on the lock and fires the failure notifier. Start it again afterwards.
 
 ### Aggregate Installs
 
