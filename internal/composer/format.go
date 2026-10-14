@@ -95,7 +95,9 @@ func ComposerVersion(pkgType, slug, ver, downloadURL string, meta PackageMeta) V
 		entry["time"] = meta.LastUpdated
 	}
 	if ver == "dev-trunk" {
-		if meta.LastUpdated != "" {
+		// Only once the package has published times, so deploying before the
+		// backfill leaves metadata unchanged.
+		if meta.PublishedTimes != nil && meta.LastUpdated != "" {
 			entry["published-time"] = meta.LastUpdated
 		}
 	} else if published := meta.PublishedTimes[ver]; published != "" {

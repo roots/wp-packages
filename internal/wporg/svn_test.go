@@ -264,7 +264,7 @@ func TestTagChangesPlugin(t *testing.T) {
 		{Revision: 1, Date: d1, Added: []string{"/akismet/tags/5.0"}, Modified: []string{"/akismet/trunk/akismet.php"}},
 		// Readme-only edit of an existing tag ("Tested up to" bump) is ignored.
 		{Revision: 2, Date: d2, Modified: []string{"/akismet/tags/4.0/readme.txt", "/akismet/trunk/readme.txt"},
-			FilePaths: map[string]bool{"/akismet/tags/4.0/readme.txt": true, "/akismet/trunk/readme.txt": true}},
+			PlainFilePaths: map[string]bool{"/akismet/tags/4.0/readme.txt": true, "/akismet/trunk/readme.txt": true}},
 		// Code edit inside an existing tag is a change, even alongside a readme edit.
 		{Revision: 3, Date: d2, Modified: []string{"/jetpack/tags/1.0/readme.txt", "/jetpack/tags/1.0/jetpack.php"}},
 		// Deleting a whole tag or a file inside one is a change; deleting a
@@ -275,7 +275,7 @@ func TestTagChangesPlugin(t *testing.T) {
 		{Revision: 8, Date: d1, Modified: []string{"/props/tags/2.0", "/props/tags/3.0/includes"}},
 		// A readme-only deletion is still ignored.
 		{Revision: 9, Date: d2, Deleted: []string{"/quiet/tags/1.0/readme.txt"},
-			FilePaths: map[string]bool{"/quiet/tags/1.0/readme.txt": true}},
+			PlainFilePaths: map[string]bool{"/quiet/tags/1.0/readme.txt": true}},
 		// A directory at a readme path isn't a readme edit: SVN logs only the
 		// copied directory, not the code inside it.
 		{Revision: 10, Date: d1, Replaced: []string{"/sneaky/tags/1.0/readme.md"}},
@@ -283,7 +283,7 @@ func TestTagChangesPlugin(t *testing.T) {
 		// Replacing a readme counts even when the new node is a file: the old
 		// node may have been a directory of code, which the log doesn't show.
 		{Revision: 12, Date: d2, Replaced: []string{"/sneaky/tags/3.0/readme.md"},
-			FilePaths: map[string]bool{"/sneaky/tags/3.0/readme.md": true}},
+			PlainFilePaths: map[string]bool{"/sneaky/tags/3.0/readme.md": true}},
 		// Retag via replace.
 		{Revision: 5, Date: d2, Replaced: []string{"/akismet/tags/3.0"}},
 		// Paths outside tags.
@@ -328,10 +328,10 @@ func TestParseSVNLogNodeKinds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !l.Commits[0].FilePaths["/akismet/tags/5.0/readme.txt"] {
+	if !l.Commits[0].PlainFilePaths["/akismet/tags/5.0/readme.txt"] {
 		t.Error("file node-kind not recorded")
 	}
-	if l.Commits[1].FilePaths["/akismet/tags/4.0/readme.md"] {
+	if l.Commits[1].PlainFilePaths["/akismet/tags/4.0/readme.md"] {
 		t.Error("dir recorded as a file")
 	}
 	if l.Commits[1].Replaced[0] != "/akismet/tags/4.0/readme.md" {
@@ -344,6 +344,35 @@ func TestParseSVNLogNodeKinds(t *testing.T) {
 	}
 	if _, ok := got["4.0"]; !ok {
 		t.Error("directory replaced at a readme path should count")
+	}
+}
+
+func TestTagChangesReadmePropertyChanges(t *testing.T) {
+	xml := `<?xml version="1.0" encoding="utf-8"?>
+<S:log-report xmlns:S="svn:" xmlns:D="DAV:">
+<S:log-item>
+<D:version-name>500</D:version-name>
+<S:date>2026-10-01T09:30:00.000000Z</S:date>
+<S:modified-path node-kind="file" text-mods="false" prop-mods="true">/akismet/tags/5.0/readme.txt</S:modified-path>
+<S:modified-path node-kind="file" text-mods="true">/akismet/tags/4.0/readme.txt</S:modified-path>
+<S:modified-path node-kind="file" text-mods="true" prop-mods="false">/akismet/tags/3.0/readme.txt</S:modified-path>
+</S:log-item>
+</S:log-report>`
+
+	l, err := parseSVNLog([]byte(xml))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := l.TagChanges("plugin").Tags["akismet"]
+	// svn:special on a readme makes it a symlink in source checkouts.
+	if _, ok := got["5.0"]; !ok {
+		t.Error("readme property change should count")
+	}
+	if _, ok := got["4.0"]; !ok {
+		t.Error("readme edit without prop-mods should count (unknown)")
+	}
+	if _, ok := got["3.0"]; ok {
+		t.Error("plain readme text edit should be ignored")
 	}
 }
 
@@ -365,7 +394,7 @@ func TestTagChangesTheme(t *testing.T) {
 	l := &SVNLog{Commits: []SVNCommit{
 		{Revision: 1, Date: d, Added: []string{"/astra/4.8.0", "/astra/4.8.0/style.css"}},
 		{Revision: 2, Date: d, Modified: []string{"/astra/4.7.0/readme.txt"},
-			FilePaths: map[string]bool{"/astra/4.7.0/readme.txt": true}},
+			PlainFilePaths: map[string]bool{"/astra/4.7.0/readme.txt": true}},
 		{Revision: 3, Date: d, Added: []string{"/new-theme"}},
 	}}
 

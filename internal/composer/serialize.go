@@ -83,13 +83,26 @@ func HashVersions(versionsJSON string, trunkRevision *int64, publishedTimesJSON 
 
 // ParsePublishedTimes decodes published_times_json. NULL or invalid JSON yields
 // nil, so published-time is simply omitted rather than failing serialization.
+// Keys are normalized like the versions they're looked up by, so rows stored
+// before a normalization change still match; on a collision the latest time
+// wins.
 func ParsePublishedTimes(publishedTimesJSON *string) map[string]string {
 	if publishedTimesJSON == nil {
 		return nil
 	}
-	var times map[string]string
-	if err := json.Unmarshal([]byte(*publishedTimesJSON), &times); err != nil {
+	var raw map[string]string
+	if err := json.Unmarshal([]byte(*publishedTimesJSON), &raw); err != nil {
 		return nil
+	}
+	times := make(map[string]string, len(raw))
+	for ver, t := range raw {
+		ver = version.Normalize(ver)
+		if ver == "" {
+			continue
+		}
+		if t > times[ver] {
+			times[ver] = t
+		}
 	}
 	return times
 }

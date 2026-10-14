@@ -155,6 +155,19 @@ func TestNormalizeVersions(t *testing.T) {
 	}
 }
 
+func TestNormalizeIsIdempotent(t *testing.T) {
+	inputs := []string{"v 2.1", " V1.0 ", "v2.0", "1.0", " 3.1.0-beta1", "trunk", "Trunk", "dev-trunk", "v", "bad!", ""}
+	for _, in := range inputs {
+		once := Normalize(in)
+		if twice := Normalize(once); twice != once {
+			t.Errorf("Normalize(Normalize(%q)) = %q, want %q", in, twice, once)
+		}
+	}
+	if got := Normalize("v 2.1"); got != "2.1" {
+		t.Errorf("Normalize(%q) = %q, want 2.1", "v 2.1", got)
+	}
+}
+
 func TestNormalizeVersionsCollisionIsDeterministic(t *testing.T) {
 	// Both normalize to 1.0; the tag already in normalized form wins, and
 	// otherwise the lexically smallest raw tag, regardless of map order.

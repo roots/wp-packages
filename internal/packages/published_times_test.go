@@ -75,9 +75,14 @@ func TestMergePublishedTimes(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid stored JSON errors", func(t *testing.T) {
-		if _, err := MergePublishedTimes(`{"1.0":"a"}`, `{"1.0":"a"}`, strPtr("nope"), now); err == nil {
-			t.Error("expected error for invalid published_times_json")
+	t.Run("invalid stored JSON re-stamps every version", func(t *testing.T) {
+		got, err := MergePublishedTimes(`{"1.0":"a","2.0":"b"}`, `{"1.0":"a"}`, strPtr("nope"), now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]string{"1.0": stamp, "2.0": stamp}
+		if times := decodeTimes(t, got); !reflect.DeepEqual(times, want) {
+			t.Errorf("times = %v, want %v", times, want)
 		}
 	})
 }
@@ -113,6 +118,7 @@ func TestResetPublishedTimes(t *testing.T) {
 	insertTimesPackage(t, database, "plugin", "akismet", `{"1.0":"a","2.0":"b"}`,
 		strPtr(`{"1.0":"`+old+`","2.0":"`+old+`","3.0":"`+future+`"}`), nil)
 	insertTimesPackage(t, database, "plugin", "unbackfilled", `{"1.0":"a"}`, nil, nil)
+	insertTimesPackage(t, database, "plugin", "corrupt", `{"1.0":"a"}`, strPtr("not json"), nil)
 	insertTimesPackage(t, database, "theme", "akismet", `{"1.0":"a"}`, strPtr(`{"1.0":"`+old+`"}`), nil)
 
 	commit := time.Date(2026, 10, 13, 11, 0, 0, 0, time.UTC)
@@ -122,6 +128,8 @@ func TestResetPublishedTimes(t *testing.T) {
 		"akismet":      {"v1.0": commit, "3.0": commit, "4.0": commit, "trunk": commit},
 		"unbackfilled": {"1.0": commit},
 		"missing":      {"1.0": commit},
+		// An unreadable row is skipped instead of failing every reset.
+		"corrupt": {"1.0": commit},
 	}, nil, now)
 	if err != nil {
 		t.Fatal(err)

@@ -138,8 +138,9 @@ type svnLogItem struct {
 }
 
 type svnPath struct {
-	Path string `xml:",chardata"`
-	Kind string `xml:"node-kind,attr"`
+	Path     string `xml:",chardata"`
+	Kind     string `xml:"node-kind,attr"`
+	PropMods string `xml:"prop-mods,attr"`
 }
 
 // SVNLog is a parsed SVN changelog for a revision range.
@@ -166,8 +167,9 @@ type SVNCommit struct {
 	Modified []string
 	Deleted  []string
 	Replaced []string
-	// FilePaths holds the paths logged with node-kind="file".
-	FilePaths map[string]bool
+	// PlainFilePaths holds the paths logged as files without property changes
+	// (node-kind="file", prop-mods="false").
+	PlainFilePaths map[string]bool
 }
 
 // SVNLogLimit is the maximum number of log items FetchSVNLog requests. A range
@@ -251,13 +253,13 @@ func parseSVNLog(data []byte) (*SVNLog, error) {
 			log.MinRev = item.Revision
 		}
 
-		commit := SVNCommit{Revision: item.Revision, FilePaths: make(map[string]bool)}
+		commit := SVNCommit{Revision: item.Revision, PlainFilePaths: make(map[string]bool)}
 		collect := func(paths []svnPath) []string {
 			out := make([]string, 0, len(paths))
 			for _, p := range paths {
 				out = append(out, p.Path)
-				if p.Kind == "file" {
-					commit.FilePaths[p.Path] = true
+				if p.Kind == "file" && p.PropMods == "false" {
+					commit.PlainFilePaths[p.Path] = true
 				}
 			}
 			return out
@@ -325,8 +327,10 @@ type TagChangeSet struct {
 // Commits that only touch the tag's readme file are ignored: authors routinely
 // bump "Tested up to" in the stable tag, and treating that as a new release
 // would keep popular plugins permanently inside Composer's cooldown. Only paths
-// logged as files qualify; a directory copied to a readme path (whose contents
-// SVN doesn't log) is a change. Replacing a readme always counts: the log shows
+// logged as files without property changes qualify; a directory copied to a
+// readme path (whose contents SVN doesn't log) is a change, and so is a
+// property change such as svn:special, which turns the readme into a symlink
+// in source checkouts. Replacing a readme always counts: the log shows
 // only the new node's kind, so a readme directory with code in it replaced by a
 // file looks like a file edit.
 func (l *SVNLog) TagChanges(pkgType string) TagChangeSet {
@@ -353,7 +357,7 @@ func (l *SVNLog) TagChanges(pkgType string) TagChangeSet {
 				return
 			}
 			key := [2]string{slug, tag}
-			if readmeExempt && c.FilePaths[p] && isReadme(rest) {
+			if readmeExempt && c.PlainFilePaths[p] && isReadme(rest) {
 				if _, seen := touched[key]; !seen {
 					touched[key] = false
 				}

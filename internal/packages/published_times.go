@@ -34,10 +34,12 @@ func MergePublishedTimes(newVersionsJSON, oldVersionsJSON string, old *string, n
 		return nil, nil
 	}
 
+	// An unreadable row is treated as empty, so every version is re-stamped
+	// with now: the safe direction, and it repairs the row.
 	times := map[string]string{}
 	if old != nil {
 		if err := json.Unmarshal([]byte(*old), &times); err != nil {
-			return nil, fmt.Errorf("parsing published_times_json: %w", err)
+			times = map[string]string{}
 		}
 	}
 
@@ -109,9 +111,12 @@ func ResetPublishedTimes(ctx context.Context, db *sql.DB, pkgType string, tags m
 			continue
 		}
 
+		// Skip an unreadable row rather than failing the whole chunk, which
+		// would stall change detection for every package. The slug is still
+		// marked changed, and update re-stamps all its versions with now.
 		var times map[string]string
 		if err := json.Unmarshal([]byte(*timesJSON), &times); err != nil {
-			return 0, fmt.Errorf("parsing published_times_json for %s/%s: %w", pkgType, slug, err)
+			continue
 		}
 
 		toReset := make(map[string]bool)

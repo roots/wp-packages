@@ -20,9 +20,12 @@ func Normalize(v string) string {
 	if v == "" {
 		return ""
 	}
-	// Strip leading v/V to match Composer's VersionParser behavior.
+	// Strip leading v/V to match Composer's VersionParser behavior, then trim
+	// again so "v 2.1" and " 2.1" both give "2.1" (Normalize must be
+	// idempotent: stored keys are normalized again when serialized).
 	v = strings.TrimPrefix(v, "v")
 	v = strings.TrimPrefix(v, "V")
+	v = strings.TrimSpace(v)
 	if strings.EqualFold(v, "trunk") || v == "dev-trunk" {
 		return "dev-trunk"
 	}
