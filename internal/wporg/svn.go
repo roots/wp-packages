@@ -67,16 +67,14 @@ func parseSVNHTML(ctx context.Context, r interface{ Read([]byte) (int, error) },
 		}
 
 		// Each entry is: <li><a href="slug-name/">slug-name/</a></li>
-		_, after, ok := strings.Cut(line, `<a href="`)
+		_, rest, ok := strings.Cut(line, `<a href="`)
 		if !ok {
 			continue
 		}
-		rest := after
-		before0, _, ok0 := strings.Cut(rest, "\"")
-		if !ok0 {
+		href, _, ok := strings.Cut(rest, "\"")
+		if !ok {
 			continue
 		}
-		href := before0
 
 		slug := strings.TrimSuffix(href, "/")
 		if slug == "" || slug == ".." || strings.HasPrefix(slug, "!svn") {
@@ -107,11 +105,10 @@ func parseSVNHTML(ctx context.Context, r interface{ Read([]byte) (int, error) },
 //	<h2> - Revision 3483213: /</h2>
 func parseSVNRevision(line string) int64 {
 	const marker = "Revision "
-	_, after, ok := strings.Cut(line, marker)
+	_, rest, ok := strings.Cut(line, marker)
 	if !ok {
 		return 0
 	}
-	rest := after
 	end := strings.IndexAny(rest, ":< ")
 	if end < 0 {
 		return 0
