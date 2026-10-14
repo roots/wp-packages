@@ -239,8 +239,7 @@ func withNegotiationMux(htmlHandler http.Handler, mdMux *http.ServeMux, appURL s
 		}
 
 		// `.md` suffix forces a Markdown response regardless of Accept.
-		if before, ok := strings.CutSuffix(path, ".md"); ok {
-			stripped := before
+		if stripped, ok := strings.CutSuffix(path, ".md"); ok {
 			// `/index.md` is the homepage's Markdown sibling — collapse
 			// to `/` so it dispatches to the index handler. Empty case
 			// covers a bare `.md` request.
