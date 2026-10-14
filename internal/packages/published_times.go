@@ -119,12 +119,8 @@ func ResetPublishedTimes(ctx context.Context, db *sql.DB, pkgType string, tags m
 			continue
 		}
 
+		_, resetAll := all[slug]
 		toReset := make(map[string]bool)
-		if _, ok := all[slug]; ok {
-			for ver := range times {
-				toReset[ver] = true
-			}
-		}
 		for tag := range tags[slug] {
 			if ver := version.Normalize(tag); ver != "" && ver != "dev-trunk" {
 				toReset[ver] = true
@@ -132,9 +128,14 @@ func ResetPublishedTimes(ctx context.Context, db *sql.DB, pkgType string, tags m
 		}
 
 		changed := false
-		for ver := range toReset {
-			if prev, ok := times[ver]; ok && prev < stamp {
-				times[ver] = stamp
+		for key, prev := range times {
+			// Match on the normalized key: rows stored before Normalize was
+			// idempotent can hold keys like " 2.1".
+			if !resetAll && !toReset[version.Normalize(key)] {
+				continue
+			}
+			if prev < stamp {
+				times[key] = stamp
 				changed = true
 				reset++
 			}
@@ -222,8 +223,9 @@ func BackfillPublishedTimes(ctx context.Context, db *sql.DB, pkgType string, tag
 			if allTimes[name].After(t) {
 				t = allTimes[name]
 			}
-			if tagged[ver].After(t) {
-				t = tagged[ver]
+			// versions_json keys can predate Normalize being idempotent (" 2.1").
+			if tt := tagged[version.Normalize(ver)]; tt.After(t) {
+				t = tt
 			}
 			times[ver] = t.UTC().Format(time.RFC3339)
 		}

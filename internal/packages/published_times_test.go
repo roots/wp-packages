@@ -119,6 +119,8 @@ func TestResetPublishedTimes(t *testing.T) {
 		strPtr(`{"1.0":"`+old+`","2.0":"`+old+`","3.0":"`+future+`"}`), nil)
 	insertTimesPackage(t, database, "plugin", "unbackfilled", `{"1.0":"a"}`, nil, nil)
 	insertTimesPackage(t, database, "plugin", "corrupt", `{"1.0":"a"}`, strPtr("not json"), nil)
+	// Stored before Normalize was idempotent.
+	insertTimesPackage(t, database, "plugin", "spaced", `{" 2.1":"a"}`, strPtr(`{" 2.1":"`+old+`"}`), nil)
 	insertTimesPackage(t, database, "theme", "akismet", `{"1.0":"a"}`, strPtr(`{"1.0":"`+old+`"}`), nil)
 
 	commit := time.Date(2026, 10, 13, 11, 0, 0, 0, time.UTC)
@@ -130,12 +132,16 @@ func TestResetPublishedTimes(t *testing.T) {
 		"missing":      {"1.0": commit},
 		// An unreadable row is skipped instead of failing every reset.
 		"corrupt": {"1.0": commit},
+		"spaced":  {"v 2.1": commit},
 	}, nil, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 {
-		t.Errorf("reset = %d, want 1", n)
+	if n != 2 {
+		t.Errorf("reset = %d, want 2", n)
+	}
+	if got := *readTimes(t, database, "spaced"); got != `{" 2.1":"`+stamp+`"}` {
+		t.Errorf("spaced times = %s, want legacy key reset", got)
 	}
 
 	want := map[string]string{"1.0": stamp, "2.0": old, "3.0": future}
@@ -249,9 +255,10 @@ func TestBackfillPublishedTimesAllTags(t *testing.T) {
 	later := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
 
 	insertTimesPackage(t, database, "plugin", "copied", `{"1.0":"a","2.0":"b"}`, nil, nil)
+	insertTimesPackage(t, database, "plugin", "spaced", `{" 2.1":"a"}`, nil, nil)
 
 	if _, err := BackfillPublishedTimes(ctx, database, "plugin",
-		map[string]map[string]time.Time{"copied": {"2.0": later}},
+		map[string]map[string]time.Time{"copied": {"2.0": later}, "spaced": {"v 2.1": later}},
 		map[string]time.Time{"copied": whole}, baseline, now); err != nil {
 		t.Fatal(err)
 	}
@@ -260,6 +267,10 @@ func TestBackfillPublishedTimesAllTags(t *testing.T) {
 	want := map[string]string{"1.0": "2026-10-05T00:00:00Z", "2.0": "2026-10-10T00:00:00Z"}
 	if times := decodeTimes(t, readTimes(t, database, "copied")); !reflect.DeepEqual(times, want) {
 		t.Errorf("copied times = %v, want %v", times, want)
+	}
+	// A legacy " 2.1" key still matches tag "v 2.1".
+	if got := *readTimes(t, database, "spaced"); got != `{" 2.1":"2026-10-10T00:00:00Z"}` {
+		t.Errorf("spaced times = %s, want tag date", got)
 	}
 }
 
