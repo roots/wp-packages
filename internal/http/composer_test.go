@@ -29,6 +29,7 @@ func setupComposerTestApp(t *testing.T) *app.App {
 			is_active INTEGER NOT NULL DEFAULT 1,
 			last_committed TEXT,
 			trunk_revision INTEGER,
+			published_times_json TEXT,
 			created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
 			UNIQUE(type, name)
 		)
@@ -136,6 +137,32 @@ func TestP2Package_TaggedVersions(t *testing.T) {
 	packages := body["packages"].(map[string]any)
 	if _, ok := packages["wp-plugin/akismet"]; !ok {
 		t.Error("missing wp-plugin/akismet in packages")
+	}
+}
+
+func TestP2Package_PublishedTime(t *testing.T) {
+	a := setupComposerTestApp(t)
+	_, err := a.DB.Exec(`INSERT INTO packages (type, name, versions_json, published_times_json, is_active, created_at, updated_at)
+		VALUES ('plugin', 'akismet', ?, ?, 1, datetime('now'), datetime('now'))`,
+		`{"5.3.7":"https://downloads.wordpress.org/plugin/akismet.5.3.7.zip"}`,
+		`{"5.3.7":"2026-09-01T00:00:00Z"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := serveP2(handleP2Package(a), "/p2/wp-plugin/akismet.json")
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+
+	var body struct {
+		Packages map[string]map[string]map[string]any `json:"packages"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got := body.Packages["wp-plugin/akismet"]["5.3.7"]["published-time"]; got != "2026-09-01T00:00:00Z" {
+		t.Errorf("published-time = %v, want 2026-09-01T00:00:00Z", got)
 	}
 }
 

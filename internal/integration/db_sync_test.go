@@ -37,7 +37,7 @@ func backfillContentHashes(t *testing.T, database *sql.DB) {
 	}
 
 	for _, p := range pkgs {
-		hash := composer.HashVersions(p.VersionsJSON, p.TrunkRevision)
+		hash := composer.HashVersions(p.VersionsJSON, p.TrunkRevision, p.PublishedTimesJSON)
 		_, err := database.ExecContext(ctx,
 			`UPDATE packages SET content_hash = ? WHERE id = ?`, hash, p.ID)
 		if err != nil {

@@ -19,6 +19,7 @@ For years, WPackagist was the go-to Composer repository for WordPress plugins an
 | Governance | Open roadmap, community collaboration | Corporate decision-making |
 | Untagged plugin installs | Pinned to SVN revision — `composer.lock` is reproducible | Mutable trunk zip with cache-busting timestamp — `composer.lock` is not reproducible. **This can cause unexpected plugin updates** |
 | Closed plugins & themes | Removed in lockstep with WordPress.org — matches wp.org's own behavior, where closed plugins are no longer downloadable. Closures are tracked on the [status page](https://wp-packages.org/status) and exposed via the [closures API](https://wp-packages.org/docs#api) | Continues serving closed plugins indefinitely with no notice. **Users can unknowingly install plugins closed years ago for security or abandonment** |
+| Composer [cooldown](https://getcomposer.org/doc/06-config.md#cooldown) (2.11+) | Supported — every version has a `published-time` set when WP Packages first serves it, and reset if the release is changed in SVN | Not supported — no `published-time`, so Composer errors when cooldown is enabled. Turning off `require-published-time` doesn't help: tagged versions have no `time` either. **Nothing is held back** |
 | Install statistics | Per-package install stats — transparency for the community and package authors | No install statistics |
 | Public status page | Real-time [status page](https://wp-packages.org/status) with build history, package changes, and closure tracking | No status page |
 

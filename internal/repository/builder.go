@@ -92,7 +92,8 @@ func Build(ctx context.Context, db *sql.DB, opts BuildOpts) (*BuildResult, error
 
 	// Query active packages
 	query := `SELECT id, type, name, display_name, description, author, homepage,
-		versions_json, current_version, last_committed, trunk_revision
+		versions_json, current_version, last_committed, trunk_revision,
+		published_times_json
 		FROM packages WHERE is_active = 1`
 	args := []any{}
 
@@ -132,9 +133,11 @@ func Build(ctx context.Context, db *sql.DB, opts BuildOpts) (*BuildResult, error
 			currentVer                                 *string
 			lastCommitted                              *string
 			trunkRevision                              *int64
+			publishedTimesJSON                         *string
 		)
 		if err := rows.Scan(&id, &pkgType, &name, &displayName, &description, &author,
-			&homepage, &versionsJSON, &currentVer, &lastCommitted, &trunkRevision); err != nil {
+			&homepage, &versionsJSON, &currentVer, &lastCommitted, &trunkRevision,
+			&publishedTimesJSON); err != nil {
 			return nil, fmt.Errorf("scanning package: %w", err)
 		}
 
@@ -164,6 +167,7 @@ func Build(ctx context.Context, db *sql.DB, opts BuildOpts) (*BuildResult, error
 			meta.LastUpdated = *lastCommitted
 		}
 		meta.TrunkRevision = trunkRevision
+		meta.PublishedTimes = composer.ParsePublishedTimes(publishedTimesJSON)
 
 		// Split versions into tagged (for .json) and build all entries
 		taggedVersions := make(map[string]any)

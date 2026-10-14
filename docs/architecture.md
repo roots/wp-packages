@@ -49,13 +49,24 @@ internal/
 ## Data Flow
 
 1. **Discovery** creates/updates shell package records (`type`, `name`, `last_committed`).
-2. **Update** fetches full package payloads, normalizes versions, stores to `packages.versions_json`.
+2. **Update** fetches full package payloads, normalizes versions, stores to `packages.versions_json`, and stamps newly listed versions in `packages.published_times_json`.
 3. **Build** generates:
    - `packages.json` (with absolute `notify-batch` URL to app domain)
    - Composer v2 metadata files under `p2/`
    - `manifest.json` with build metrics and snapshot metadata
 4. **Deploy** promotes a complete build by switching the `current` symlink and optionally syncing to R2.
 5. **R2/CDN** serves static JSON directly; Caddy proxies dynamic routes to the Go app.
+
+## Published Times
+
+Composer's cooldown policy (Composer 2.11+) withholds versions published more recently than a configured period, using each version's `published-time`. It must reflect when WP Packages first published a version and never anything a plugin author controls:
+
+- **Update** stamps a version with the current time the first time it appears in the wp.org API (after `FilterNewerThan`, so tags pushed ahead of the Stable Tag start their cooldown when they actually go live). Existing times are kept, including for versions that temporarily drop out of the API.
+- **Discover** resets the time to now when the SVN log shows a published version's tag was created or changed (plugins: `/<slug>/tags/<tag>/`, themes: `/<slug>/<version>/`), so a re-tagged release gets the cooldown again. Changes that only touch the tag's `readme.txt`/`readme.md` file are ignored, since authors routinely bump "Tested up to" in the stable tag (a directory at a readme path counts, since SVN doesn't log the files copied into it, and so does replacing a readme, since the log doesn't show whether the old node was a directory). Any change inside a tag counts, including deleting the tag (another raw tag that normalizes to the same version, e.g. `v1.0` for `1.0`, may take over) and property-only changes to the tag directory or directories inside it (`svn:externals` there changes Composer SVN source checkouts). Adding or replacing a package's whole tags directory (or root) resets every version, since SVN logs only the copied directory, not the files in it. Deleting the tags directory or root isn't a change, and neither are property changes on them, which don't apply to tag checkouts or wp.org's zips. Plugin tags like `.1` map to version `0.1`, as wp.org does. Only `--source=svn` discovery reads the SVN log; config discovery can't reset times.
+- `dev-trunk` uses `last_committed`; Composer never withholds dev versions.
+- Published times are part of `content_hash`, so a reset re-deploys the package.
+- Known limitation: an unpinned `svn:externals` inside a tag follows its target's HEAD, so a `--prefer-source` checkout can change without any commit to the tag, which the SVN log can't show. Default dist installs use wp.org zips built with `--ignore-externals` (BuddyPress aside).
+- Known limitation of the one-time backfill: a tag created inside the scanned window but only made visible later by a Stable Tag bump gets its commit date (or the window start if it's older), not the time it went live.
 
 ## Snapshot Consistency
 
