@@ -137,8 +137,6 @@ type stepDurations struct {
 // and runBuild can persist whatever step timings were captured before failure.
 var pipelineStepDurations stepDurations
 
-func intPtr(v int) *int { return &v }
-
 func executePipelineSteps(cmd *cobra.Command, ctx context.Context, skipDiscover, skipDeploy bool, discoverSource string) error {
 	pipelineStepDurations = stepDurations{}
 
@@ -150,7 +148,7 @@ func executePipelineSteps(cmd *cobra.Command, ctx context.Context, skipDiscover,
 		if err := runDiscover(discoverCmd, nil); err != nil {
 			return fmt.Errorf("discover: %w", err)
 		}
-		pipelineStepDurations.Discover = intPtr(int(time.Since(stepStart).Seconds()))
+		pipelineStepDurations.Discover = new(int(time.Since(stepStart).Seconds()))
 	}
 
 	application.Logger.Info("pipeline: running update")
@@ -159,7 +157,7 @@ func executePipelineSteps(cmd *cobra.Command, ctx context.Context, skipDiscover,
 	if err := runUpdate(updateCmd, nil); err != nil {
 		return fmt.Errorf("update: %w", err)
 	}
-	pipelineStepDurations.Update = intPtr(int(time.Since(stepStart).Seconds()))
+	pipelineStepDurations.Update = new(int(time.Since(stepStart).Seconds()))
 
 	application.Logger.Info("pipeline: running build")
 	buildCmd.SetContext(ctx)
@@ -167,14 +165,14 @@ func executePipelineSteps(cmd *cobra.Command, ctx context.Context, skipDiscover,
 	if err := runBuild(buildCmd, nil); err != nil {
 		return fmt.Errorf("build: %w", err)
 	}
-	pipelineStepDurations.Build = intPtr(int(time.Since(stepStart).Seconds()))
+	pipelineStepDurations.Build = new(int(time.Since(stepStart).Seconds()))
 
 	if !skipDeploy {
 		application.Logger.Info("pipeline: running deploy")
 		deployCmd.SetContext(ctx)
 		stepStart = time.Now()
 		deployErr := runDeploy(deployCmd, nil)
-		pipelineStepDurations.Deploy = intPtr(int(time.Since(stepStart).Seconds()))
+		pipelineStepDurations.Deploy = new(int(time.Since(stepStart).Seconds()))
 		pipelineStepDurations.R2Upload = deployR2SyncSeconds
 		if deployErr != nil {
 			return fmt.Errorf("deploy: %w", deployErr)

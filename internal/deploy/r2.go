@@ -69,7 +69,6 @@ func SyncToR2(ctx context.Context, db *sql.DB, cfg config.R2Config, buildDir, bu
 	g.SetLimit(cfg.Concurrency)
 
 	for _, relPath := range filePaths {
-		relPath := relPath
 		if relPath == r2IndexFile {
 			continue // upload last
 		}

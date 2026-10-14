@@ -131,7 +131,7 @@ func TestDownloads_BatchCap(t *testing.T) {
 
 	// Build 150-item batch with distinct versions so each produces a unique event
 	var items []string
-	for i := 0; i < 150; i++ {
+	for i := range 150 {
 		items = append(items, fmt.Sprintf(`{"name":"wp-plugin/akismet","version":"%d.0"}`, i))
 	}
 	body := `{"downloads":[` + strings.Join(items, ",") + `]}`

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
 
@@ -241,8 +242,8 @@ func routeMarker(h http.Handler) http.Handler {
 
 // Chain applies middleware in order (first argument is innermost).
 func Chain(h http.Handler, mw ...func(http.Handler) http.Handler) http.Handler {
-	for i := len(mw) - 1; i >= 0; i-- {
-		h = mw[i](h)
+	for _, m := range slices.Backward(mw) {
+		h = m(h)
 	}
 	return h
 }

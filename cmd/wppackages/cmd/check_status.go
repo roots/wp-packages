@@ -72,7 +72,6 @@ func runCheckStatus(cmd *cobra.Command, args []string) error {
 	g.SetLimit(concurrency)
 
 	for _, p := range pkgs {
-		p := p
 		g.Go(func() error {
 			var fetchErr error
 
