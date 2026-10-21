@@ -48,11 +48,11 @@ func stripLeadingHTMLComment(s string) string {
 	if !strings.HasPrefix(trimmed, "<!--") {
 		return s
 	}
-	end := strings.Index(trimmed, "-->")
-	if end < 0 {
+	_, after, ok := strings.Cut(trimmed, "-->")
+	if !ok {
 		return s
 	}
-	return strings.TrimLeft(trimmed[end+3:], " \t\r\n")
+	return strings.TrimLeft(after, " \t\r\n")
 }
 
 func writeMarkdown(w http.ResponseWriter, body, cacheControl string) {
@@ -376,11 +376,8 @@ func renderDetailMarkdown(pkg *packageDetail, versions []versionRow, untagged, t
 
 	if len(versions) > 0 {
 		fmt.Fprintf(&b, "## Versions (%d)\n\n", len(versions))
-		limit := 20
-		if len(versions) < limit {
-			limit = len(versions)
-		}
-		for i := 0; i < limit; i++ {
+		limit := min(len(versions), 20)
+		for i := range limit {
 			v := versions[i]
 			marker := ""
 			if v.IsLatest {
@@ -505,11 +502,8 @@ func renderStatusMarkdown(s struct {
 		b.WriteString("Builds run every 5 minutes.\n\n")
 		b.WriteString("| Build ID | Started | Packages | Changed | Status | Duration |\n")
 		b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
-		limit := 20
-		if len(builds) < limit {
-			limit = len(builds)
-		}
-		for i := 0; i < limit; i++ {
+		limit := min(len(builds), 20)
+		for i := range limit {
 			bd := builds[i]
 			marker := ""
 			if bd.IsCurrent {
@@ -531,11 +525,8 @@ func renderStatusMarkdown(s struct {
 	} else {
 		b.WriteString("| Started | Status | Checked | Deactivated | Reactivated | Failed |\n")
 		b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
-		limit := 20
-		if len(checks) < limit {
-			limit = len(checks)
-		}
-		for i := 0; i < limit; i++ {
+		limit := min(len(checks), 20)
+		for i := range limit {
 			c := checks[i]
 			fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %d |\n",
 				c.StartedAt, c.Status, c.Checked, c.Deactivated, c.Reactivated, c.Failed)

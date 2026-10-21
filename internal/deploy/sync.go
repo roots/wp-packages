@@ -48,7 +48,6 @@ func Sync(ctx context.Context, db *sql.DB, cfg config.R2Config, appURL string, l
 	g.SetLimit(cfg.Concurrency)
 
 	for _, p := range dirty {
-		p := p
 		g.Go(func() error {
 			files, err := composer.PackageFiles(p.Type, p.Name, p.VersionsJSON, p.ComposerMeta())
 			if err != nil {

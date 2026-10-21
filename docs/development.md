@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.26+
+- Go 1.27+
 - [air](https://github.com/air-verse/air) — `go install github.com/air-verse/air@latest`
 - [golangci-lint](https://github.com/golangci/golangci-lint) — `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest` (for `make lint`)
 
