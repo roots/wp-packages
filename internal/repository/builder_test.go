@@ -44,6 +44,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 			content_hash TEXT,
 			deployed_hash TEXT,
 			content_changed_at TEXT,
+			published_times_json TEXT,
 			wp_packages_installs_total INTEGER NOT NULL DEFAULT 0,
 			wp_packages_installs_30d INTEGER NOT NULL DEFAULT 0,
 			last_installed_at TEXT,
@@ -151,7 +152,7 @@ func TestBuildParallelWrites(t *testing.T) {
 	database := setupTestDB(t)
 
 	// Insert many packages to exercise parallel writes
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		slug := fmt.Sprintf("plugin-%d", i)
 		_, _ = database.Exec(`INSERT INTO packages (type, name, display_name, versions_json, is_active, last_sync_run_id, created_at, updated_at)
 			VALUES ('plugin', ?, ?,
@@ -173,7 +174,7 @@ func TestBuildParallelWrites(t *testing.T) {
 	}
 
 	// Verify p2 files exist on disk
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		slug := fmt.Sprintf("plugin-%d", i)
 		p2Path := filepath.Join(result.BuildDir, "p2", "wp-plugin", slug+".json")
 		if _, err := os.Stat(p2Path); err != nil {

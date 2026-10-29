@@ -25,6 +25,17 @@ func acquirePipelineLock() error {
 	return acquireLock(lockPath)
 }
 
+// ensurePipelineLock takes the pipeline lock for a command run on its own, so
+// it can't interleave with a scheduled pipeline (e.g. a manual update writing
+// back published times that discover just reset). When the command runs as a
+// pipeline step, this process already holds the lock.
+func ensurePipelineLock() error {
+	if pipelineLockFile != nil {
+		return nil
+	}
+	return acquirePipelineLock()
+}
+
 // acquireLock acquires an exclusive file lock at lockPath.
 func acquireLock(lockPath string) error {
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
@@ -137,8 +148,6 @@ type stepDurations struct {
 // and runBuild can persist whatever step timings were captured before failure.
 var pipelineStepDurations stepDurations
 
-func intPtr(v int) *int { return &v }
-
 func executePipelineSteps(cmd *cobra.Command, ctx context.Context, skipDiscover, skipDeploy bool, discoverSource string) error {
 	pipelineStepDurations = stepDurations{}
 
@@ -150,7 +159,7 @@ func executePipelineSteps(cmd *cobra.Command, ctx context.Context, skipDiscover,
 		if err := runDiscover(discoverCmd, nil); err != nil {
 			return fmt.Errorf("discover: %w", err)
 		}
-		pipelineStepDurations.Discover = intPtr(int(time.Since(stepStart).Seconds()))
+		pipelineStepDurations.Discover = new(int(time.Since(stepStart).Seconds()))
 	}
 
 	application.Logger.Info("pipeline: running update")
@@ -159,7 +168,7 @@ func executePipelineSteps(cmd *cobra.Command, ctx context.Context, skipDiscover,
 	if err := runUpdate(updateCmd, nil); err != nil {
 		return fmt.Errorf("update: %w", err)
 	}
-	pipelineStepDurations.Update = intPtr(int(time.Since(stepStart).Seconds()))
+	pipelineStepDurations.Update = new(int(time.Since(stepStart).Seconds()))
 
 	application.Logger.Info("pipeline: running build")
 	buildCmd.SetContext(ctx)
@@ -167,14 +176,14 @@ func executePipelineSteps(cmd *cobra.Command, ctx context.Context, skipDiscover,
 	if err := runBuild(buildCmd, nil); err != nil {
 		return fmt.Errorf("build: %w", err)
 	}
-	pipelineStepDurations.Build = intPtr(int(time.Since(stepStart).Seconds()))
+	pipelineStepDurations.Build = new(int(time.Since(stepStart).Seconds()))
 
 	if !skipDeploy {
 		application.Logger.Info("pipeline: running deploy")
 		deployCmd.SetContext(ctx)
 		stepStart = time.Now()
 		deployErr := runDeploy(deployCmd, nil)
-		pipelineStepDurations.Deploy = intPtr(int(time.Since(stepStart).Seconds()))
+		pipelineStepDurations.Deploy = new(int(time.Since(stepStart).Seconds()))
 		pipelineStepDurations.R2Upload = deployR2SyncSeconds
 		if deployErr != nil {
 			return fmt.Errorf("deploy: %w", deployErr)

@@ -374,10 +374,7 @@ func generateSitemaps(ctx context.Context, db *sql.DB, appURL string) (index []b
 	}
 
 	for i := 0; i < len(allURLs); i += sitemapPageSize {
-		end := i + sitemapPageSize
-		if end > len(allURLs) {
-			end = len(allURLs)
-		}
+		end := min(i+sitemapPageSize, len(allURLs))
 
 		urlSet := sitemapURLSet{
 			XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9",

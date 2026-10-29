@@ -20,9 +20,12 @@ func Normalize(v string) string {
 	if v == "" {
 		return ""
 	}
-	// Strip leading v/V to match Composer's VersionParser behavior.
+	// Strip leading v/V to match Composer's VersionParser behavior, then trim
+	// again so "v 2.1" and " 2.1" both give "2.1" (Normalize must be
+	// idempotent: stored keys are normalized again when serialized).
 	v = strings.TrimPrefix(v, "v")
 	v = strings.TrimPrefix(v, "V")
+	v = strings.TrimSpace(v)
 	if strings.EqualFold(v, "trunk") || v == "dev-trunk" {
 		return "dev-trunk"
 	}
@@ -46,15 +49,34 @@ func IsValid(v string) bool {
 
 // NormalizeVersions filters and normalizes a version map (version -> download URL),
 // returning only entries with valid versions.
+//
+// When several raw versions normalize to the same key (e.g. "1.0" and "v1.0"),
+// the one already in normalized form wins, otherwise the lexically smallest,
+// so the chosen download URL doesn't flip between runs.
 func NormalizeVersions(versions map[string]string) map[string]string {
 	result := make(map[string]string, len(versions))
+	chosen := make(map[string]string, len(versions))
 	for v, url := range versions {
 		normalized := Normalize(v)
-		if normalized != "" {
-			result[normalized] = url
+		if normalized == "" {
+			continue
 		}
+		if prev, ok := chosen[normalized]; ok && !preferRawVersion(v, prev, normalized) {
+			continue
+		}
+		chosen[normalized] = v
+		result[normalized] = url
 	}
 	return result
+}
+
+// preferRawVersion reports whether raw version candidate should win over
+// current for the same normalized key.
+func preferRawVersion(candidate, current, normalized string) bool {
+	if (candidate == normalized) != (current == normalized) {
+		return candidate == normalized
+	}
+	return candidate < current
 }
 
 // FilterNewerThan removes stable tagged releases newer than maxVersion. These are
@@ -88,10 +110,7 @@ func Compare(a, b string) int {
 
 	aParts := strings.Split(aBase, ".")
 	bParts := strings.Split(bBase, ".")
-	maxLen := len(aParts)
-	if len(bParts) > maxLen {
-		maxLen = len(bParts)
-	}
+	maxLen := max(len(bParts), len(aParts))
 	for i := range maxLen {
 		var av, bv int
 		if i < len(aParts) {
@@ -118,8 +137,8 @@ func Compare(a, b string) int {
 
 // splitSuffix splits "1.0-beta1" into ("1.0", "beta1").
 func splitSuffix(v string) (string, string) {
-	if i := strings.IndexByte(v, '-'); i >= 0 {
-		return v[:i], v[i+1:]
+	if before, after, ok := strings.Cut(v, "-"); ok {
+		return before, after
 	}
 	return v, ""
 }

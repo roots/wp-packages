@@ -27,6 +27,10 @@ var discoverCmd = &cobra.Command{
 }
 
 func runDiscover(cmd *cobra.Command, args []string) error {
+	if err := ensurePipelineLock(); err != nil {
+		return err
+	}
+
 	source, _ := cmd.Flags().GetString("source")
 	pkgType, _ := cmd.Flags().GetString("type")
 	limit, _ := cmd.Flags().GetInt("limit")
@@ -38,6 +42,7 @@ func runDiscover(cmd *cobra.Command, args []string) error {
 
 	switch source {
 	case "config":
+		application.Logger.Warn("config discovery doesn't read the SVN log, so changed tags won't reset published-time; use --source=svn in production")
 		return discoverFromConfig(cmd.Context(), pkgType, limit, concurrency)
 	case "svn":
 		return discoverFromSVN(cmd.Context(), pkgType, limit)
@@ -82,7 +87,6 @@ func discoverFromConfig(ctx context.Context, pkgType string, limit, concurrency 
 	g.SetLimit(concurrency)
 
 	for _, j := range jobs {
-		j := j
 		g.Go(func() error {
 			// Fetch minimal info from API to get last_updated date
 			lastCommitted, fetchErr := client.FetchLastUpdated(gCtx, j.pkgType, j.slug)
@@ -265,15 +269,12 @@ func markChangedFromSVNLog(ctx context.Context, client *wporg.Client, src struct
 	// after downtime can't silently truncate.
 	cursor := lastRev
 	for cursor < currentRev {
-		chunkEnd := cursor + svnLogChunkSize
-		if chunkEnd > currentRev {
-			chunkEnd = currentRev
-		}
+		chunkEnd := min(cursor+svnLogChunkSize, currentRev)
 
 		application.Logger.Info("fetching SVN changelog",
 			"type", src.pkgType, "from_rev", cursor+1, "to_rev", chunkEnd)
 
-		slugRevisions, maxRev, err := client.FetchSVNChangedSlugs(ctx, src.url, cursor+1, chunkEnd)
+		svnLog, err := client.FetchSVNLog(ctx, src.url, cursor+1, chunkEnd)
 		if err != nil {
 			// Persist whatever we fully scanned before bailing so the next run
 			// resumes from there instead of redoing work.
@@ -283,6 +284,21 @@ func markChangedFromSVNLog(ctx context.Context, client *wporg.Client, src struct
 				}
 			}
 			return err
+		}
+
+		slugRevisions, maxRev := svnLog.SlugRevisions, svnLog.MaxRev
+
+		// Reset published-time for already-published versions whose tag was
+		// changed, so Composer's cooldown applies to the modified release.
+		if tagChanges := svnLog.TagChanges(src.pkgType); len(tagChanges.Tags) > 0 || len(tagChanges.All) > 0 {
+			reset, err := packages.ResetPublishedTimes(ctx, application.DB, src.pkgType, tagChanges.Tags, tagChanges.All, time.Now().UTC())
+			if err != nil {
+				return fmt.Errorf("resetting published times: %w", err)
+			}
+			if reset > 0 {
+				application.Logger.Info("reset published-time for changed tags",
+					"type", src.pkgType, "from_rev", cursor+1, "to_rev", chunkEnd, "versions_reset", reset)
+			}
 		}
 
 		if len(slugRevisions) > 0 {
@@ -370,10 +386,7 @@ func runBackfillRevisions(cmd *cobra.Command, args []string) error {
 	var totalUpdated int64
 	fromRev := currentRev
 	for fromRev > 0 && remaining > 0 {
-		toRev := fromRev - chunkSize
-		if toRev < 1 {
-			toRev = 1
-		}
+		toRev := max(fromRev-chunkSize, 1)
 
 		application.Logger.Info("fetching SVN changelog chunk",
 			"from_rev", toRev, "to_rev", fromRev, "remaining", remaining)
@@ -381,8 +394,10 @@ func runBackfillRevisions(cmd *cobra.Command, args []string) error {
 		var slugRevisions map[string]int64
 		var fetchErr error
 		for attempt := 1; attempt <= 3; attempt++ {
-			slugRevisions, _, fetchErr = client.FetchSVNChangedSlugs(ctx, baseURL, toRev, fromRev)
+			var svnLog *wporg.SVNLog
+			svnLog, fetchErr = client.FetchSVNLog(ctx, baseURL, toRev, fromRev)
 			if fetchErr == nil {
+				slugRevisions = svnLog.SlugRevisions
 				break
 			}
 			application.Logger.Warn("SVN log chunk fetch failed, retrying",
