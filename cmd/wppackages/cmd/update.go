@@ -87,9 +87,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	// Writer goroutine batches DB writes
 	writeCh := make(chan *packages.Package, concurrency*2)
-	writeErrCh := make(chan error, 1)
+	writeDone := make(chan struct{})
 	go func() {
-		defer close(writeErrCh)
+		defer close(writeDone)
 		batch := make([]*packages.Package, 0, writeBatchSize)
 		flush := func() {
 			if len(batch) == 0 {
@@ -239,7 +239,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	close(writeCh)
-	<-writeErrCh // wait for writer to finish
+	<-writeDone // wait for writer to finish
 
 	stats := map[string]any{
 		"updated":       succeeded.Load(),
