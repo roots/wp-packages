@@ -33,6 +33,10 @@ var updateCmd = &cobra.Command{
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
+	if err := ensurePipelineLock(); err != nil {
+		return err
+	}
+
 	pkgType, _ := cmd.Flags().GetString("type")
 	name, _ := cmd.Flags().GetString("name")
 	force, _ := cmd.Flags().GetBool("force")
@@ -172,15 +176,24 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			// Carry forward trunk_revision from DB (set by discover step)
 			pkg.TrunkRevision = p.TrunkRevision
 
-			// Compute content hash over normalized versions + trunk_revision
-			newHash := composer.HashVersions(pkg.VersionsJSON, pkg.TrunkRevision)
+			now := time.Now().UTC()
+
+			// Keep existing published times and stamp newly listed versions
+			publishedTimes, err := packages.MergePublishedTimes(pkg.VersionsJSON, p.VersionsJSON, p.PublishedTimesJSON, now)
+			if err != nil {
+				application.Logger.Warn("merging published times failed", "type", p.Type, "name", p.Name, "error", err)
+				failed.Add(1)
+				return nil
+			}
+			pkg.PublishedTimesJSON = publishedTimes
+
+			// Compute content hash over normalized versions + trunk_revision + published times
+			newHash := composer.HashVersions(pkg.VersionsJSON, pkg.TrunkRevision, pkg.PublishedTimesJSON)
 			pkg.ContentHash = &newHash
 			if p.ContentHash == nil || *p.ContentHash != newHash {
-				now := time.Now().UTC()
 				pkg.ContentChangedAt = &now
 			}
 
-			now := time.Now().UTC()
 			pkg.LastSyncRunID = &syncRun.RunID
 
 			decision := shouldAdvanceSyncedAt(pkg.VersionsJSON, p.VersionsJSON, pendingStable, p.Type, p.LastCommitted, now)

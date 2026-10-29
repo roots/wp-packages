@@ -90,6 +90,11 @@
 <td class="px-4 py-3 text-gray-600">Continues serving closed plugins indefinitely with no notice &mdash; <strong>users can unknowingly install plugins closed years ago for security or abandonment</strong></td>
 </tr>
 <tr class="border-t border-gray-200/40">
+<td class="px-4 py-3 font-medium text-gray-700">Composer <a href="https://getcomposer.org/doc/06-config.md#cooldown" class="text-brand-primary hover:underline">cooldown</a> (2.11+)</td>
+<td class="px-4 py-3 text-gray-600">Supported &mdash; every version has a <code class="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200/40">published-time</code> set when WP Packages first serves it, and reset if the release is changed in SVN</td>
+<td class="px-4 py-3 text-gray-600">Not supported &mdash; no <code class="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200/40">published-time</code>, so Composer errors when cooldown is enabled. Turning off <code class="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200/40">require-published-time</code> doesn't help: tagged versions have no <code class="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200/40">time</code> either &mdash; <strong>nothing is held back</strong></td>
+</tr>
+<tr class="border-t border-gray-200/40">
 <td class="px-4 py-3 font-medium text-gray-700">Install statistics</td>
 <td class="px-4 py-3 text-gray-600">Per-package install stats &mdash; transparency for the community and package authors to see how many times their packages are installed via Composer</td>
 <td class="px-4 py-3 text-gray-600">No install statistics</td>

@@ -57,12 +57,15 @@ func handleP2Package(a *app.App) http.HandlerFunc {
 		var versionsJSON string
 		var description, homepage, author, lastCommitted *string
 		var trunkRevision *int64
+		var publishedTimesJSON *string
 
 		err := a.DB.QueryRowContext(r.Context(), `
-			SELECT versions_json, description, homepage, author, last_committed, trunk_revision
+			SELECT versions_json, description, homepage, author, last_committed, trunk_revision,
+				published_times_json
 			FROM packages WHERE type = ? AND name = ? AND is_active = 1`,
 			pkgType, slug,
-		).Scan(&versionsJSON, &description, &homepage, &author, &lastCommitted, &trunkRevision)
+		).Scan(&versionsJSON, &description, &homepage, &author, &lastCommitted, &trunkRevision,
+			&publishedTimesJSON)
 
 		if err == sql.ErrNoRows {
 			http.NotFound(w, r)
@@ -74,7 +77,10 @@ func handleP2Package(a *app.App) http.HandlerFunc {
 			return
 		}
 
-		meta := composer.PackageMeta{TrunkRevision: trunkRevision}
+		meta := composer.PackageMeta{
+			TrunkRevision:  trunkRevision,
+			PublishedTimes: composer.ParsePublishedTimes(publishedTimesJSON),
+		}
 		if description != nil {
 			meta.Description = *description
 		}

@@ -14,6 +14,10 @@ type PackageMeta struct {
 	RequiresPHP   string
 	LastUpdated   string
 	TrunkRevision *int64
+	// PublishedTimes maps tagged versions to when WP Packages first published
+	// them (RFC3339). Emitted as Composer's published-time, which the cooldown
+	// policy relies on.
+	PublishedTimes map[string]string
 }
 
 // VersionEntry is a single Composer version entry (e.g. one version of a package).
@@ -89,6 +93,16 @@ func ComposerVersion(pkgType, slug, ver, downloadURL string, meta PackageMeta) V
 	}
 	if meta.LastUpdated != "" {
 		entry["time"] = meta.LastUpdated
+	}
+	if ver == "dev-trunk" {
+		// Only once the package has published times, so deploying before the
+		// backfill leaves metadata unchanged.
+		if meta.PublishedTimes != nil && meta.LastUpdated != "" {
+			entry["published-time"] = meta.LastUpdated
+		}
+	} else if published := meta.PublishedTimes[ver]; published != "" {
+		entry["time"] = published
+		entry["published-time"] = published
 	}
 
 	return entry

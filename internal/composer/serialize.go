@@ -60,21 +60,51 @@ func ObjectKeys(pkgType, name string) []string {
 	}
 }
 
-// HashVersions computes a content hash over the normalized versions_json and
-// trunk_revision. trunk_revision is included because it affects the serialized
-// dev-trunk output (source.reference includes trunk@<rev>) even though it's
-// not part of versions_json.
+// HashVersions computes a content hash over the normalized versions_json,
+// trunk_revision, and published_times_json. trunk_revision and published times
+// are included because they affect the serialized output (source.reference
+// includes trunk@<rev>; published-time) even though they're not part of
+// versions_json.
 //
-// versionsJSON is already deterministic — json.Marshal sorts map keys, and
+// The JSON inputs are already deterministic — json.Marshal sorts map keys, and
 // NormalizeAndStoreVersions always produces the same output for the same input.
-// So we hash the string directly rather than round-tripping through parse/sort.
-func HashVersions(versionsJSON string, trunkRevision *int64) string {
+// So we hash the strings directly rather than round-tripping through parse/sort.
+func HashVersions(versionsJSON string, trunkRevision *int64, publishedTimesJSON *string) string {
 	h := sha256.New()
 	h.Write([]byte(versionsJSON))
 	if trunkRevision != nil {
 		h.Write([]byte(strconv.FormatInt(*trunkRevision, 10)))
 	}
+	if publishedTimesJSON != nil {
+		h.Write([]byte(*publishedTimesJSON))
+	}
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// ParsePublishedTimes decodes published_times_json. NULL or invalid JSON yields
+// nil, so published-time is simply omitted rather than failing serialization.
+// Keys are normalized like the versions they're looked up by, so rows stored
+// before a normalization change still match; on a collision the latest time
+// wins.
+func ParsePublishedTimes(publishedTimesJSON *string) map[string]string {
+	if publishedTimesJSON == nil {
+		return nil
+	}
+	var raw map[string]string
+	if err := json.Unmarshal([]byte(*publishedTimesJSON), &raw); err != nil {
+		return nil
+	}
+	times := make(map[string]string, len(raw))
+	for ver, t := range raw {
+		ver = version.Normalize(ver)
+		if ver == "" {
+			continue
+		}
+		if t > times[ver] {
+			times[ver] = t
+		}
+	}
+	return times
 }
 
 // SerializePackage produces the Composer p2 JSON for a single package file.
