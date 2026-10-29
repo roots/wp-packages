@@ -87,7 +87,6 @@ func discoverFromConfig(ctx context.Context, pkgType string, limit, concurrency 
 	g.SetLimit(concurrency)
 
 	for _, j := range jobs {
-		j := j
 		g.Go(func() error {
 			// Fetch minimal info from API to get last_updated date
 			lastCommitted, fetchErr := client.FetchLastUpdated(gCtx, j.pkgType, j.slug)
@@ -270,10 +269,7 @@ func markChangedFromSVNLog(ctx context.Context, client *wporg.Client, src struct
 	// after downtime can't silently truncate.
 	cursor := lastRev
 	for cursor < currentRev {
-		chunkEnd := cursor + svnLogChunkSize
-		if chunkEnd > currentRev {
-			chunkEnd = currentRev
-		}
+		chunkEnd := min(cursor+svnLogChunkSize, currentRev)
 
 		application.Logger.Info("fetching SVN changelog",
 			"type", src.pkgType, "from_rev", cursor+1, "to_rev", chunkEnd)
@@ -390,10 +386,7 @@ func runBackfillRevisions(cmd *cobra.Command, args []string) error {
 	var totalUpdated int64
 	fromRev := currentRev
 	for fromRev > 0 && remaining > 0 {
-		toRev := fromRev - chunkSize
-		if toRev < 1 {
-			toRev = 1
-		}
+		toRev := max(fromRev-chunkSize, 1)
 
 		application.Logger.Info("fetching SVN changelog chunk",
 			"from_rev", toRev, "to_rev", fromRev, "remaining", remaining)

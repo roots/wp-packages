@@ -139,7 +139,7 @@ func appendVaryAccept(h http.Header) {
 		h.Set("Vary", "Accept")
 		return
 	}
-	for _, t := range strings.Split(existing, ",") {
+	for t := range strings.SplitSeq(existing, ",") {
 		if strings.EqualFold(strings.TrimSpace(t), "Accept") {
 			return
 		}
@@ -239,8 +239,7 @@ func withNegotiationMux(htmlHandler http.Handler, mdMux *http.ServeMux, appURL s
 		}
 
 		// `.md` suffix forces a Markdown response regardless of Accept.
-		if strings.HasSuffix(path, ".md") {
-			stripped := strings.TrimSuffix(path, ".md")
+		if stripped, ok := strings.CutSuffix(path, ".md"); ok {
 			// `/index.md` is the homepage's Markdown sibling — collapse
 			// to `/` so it dispatches to the index handler. Empty case
 			// covers a bare `.md` request.

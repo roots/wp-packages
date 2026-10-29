@@ -117,7 +117,6 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}()
 
 	for _, p := range pkgs {
-		p := p
 		g.Go(func() error {
 			var data map[string]any
 			var fetchErr error

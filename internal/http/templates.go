@@ -322,15 +322,15 @@ func jsonLD(data any) template.HTML {
 	}
 	// If it's a slice, emit one script tag per item
 	if items, ok := data.([]any); ok {
-		var out string
+		var out strings.Builder
 		for _, item := range items {
 			b, err := json.Marshal(item)
 			if err != nil {
 				continue
 			}
-			out += `<script type="application/ld+json">` + string(b) + `</script>`
+			out.WriteString(`<script type="application/ld+json">` + string(b) + `</script>`)
 		}
-		return template.HTML(out)
+		return template.HTML(out.String())
 	}
 	b, err := json.Marshal(data)
 	if err != nil {

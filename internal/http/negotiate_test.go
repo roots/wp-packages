@@ -482,7 +482,7 @@ func TestNegotiation_AppendsAcceptToExistingVary(t *testing.T) {
 
 	vary := w.Header().Get("Vary")
 	tokens := map[string]bool{}
-	for _, t := range strings.Split(vary, ",") {
+	for t := range strings.SplitSeq(vary, ",") {
 		tokens[strings.ToLower(strings.TrimSpace(t))] = true
 	}
 	if !tokens["cookie"] || !tokens["accept"] {

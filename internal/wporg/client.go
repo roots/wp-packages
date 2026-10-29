@@ -39,10 +39,7 @@ type Client struct {
 }
 
 func NewClient(cfg config.DiscoveryConfig, logger *slog.Logger) *Client {
-	concurrency := cfg.Concurrency
-	if concurrency < 10 {
-		concurrency = 10
-	}
+	concurrency := max(cfg.Concurrency, 10)
 	transport := &http.Transport{
 		MaxIdleConns:        concurrency + 10,
 		MaxIdleConnsPerHost: concurrency,

@@ -82,10 +82,7 @@ func BulkDeleteDeactivated(ctx context.Context, db *sql.DB, cfg config.R2Config,
 	g.SetLimit(concurrency)
 
 	for start := 0; start < len(keys); start += r2DeleteBatchSize {
-		end := start + r2DeleteBatchSize
-		if end > len(keys) {
-			end = len(keys)
-		}
+		end := min(start+r2DeleteBatchSize, len(keys))
 		batch := keys[start:end]
 		batchStart := start
 		g.Go(func() error {
@@ -179,10 +176,7 @@ func BulkDeleteDeactivated(ctx context.Context, db *sql.DB, cfg config.R2Config,
 func clearDeployedHash(ctx context.Context, db *sql.DB, ids []int64) error {
 	const chunk = 500
 	for start := 0; start < len(ids); start += chunk {
-		end := start + chunk
-		if end > len(ids) {
-			end = len(ids)
-		}
+		end := min(start+chunk, len(ids))
 		slice := ids[start:end]
 		placeholders := strings.Repeat("?,", len(slice))
 		placeholders = placeholders[:len(placeholders)-1]

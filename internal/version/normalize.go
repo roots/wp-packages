@@ -110,10 +110,7 @@ func Compare(a, b string) int {
 
 	aParts := strings.Split(aBase, ".")
 	bParts := strings.Split(bBase, ".")
-	maxLen := len(aParts)
-	if len(bParts) > maxLen {
-		maxLen = len(bParts)
-	}
+	maxLen := max(len(bParts), len(aParts))
 	for i := range maxLen {
 		var av, bv int
 		if i < len(aParts) {
@@ -140,8 +137,8 @@ func Compare(a, b string) int {
 
 // splitSuffix splits "1.0-beta1" into ("1.0", "beta1").
 func splitSuffix(v string) (string, string) {
-	if i := strings.IndexByte(v, '-'); i >= 0 {
-		return v[:i], v[i+1:]
+	if before, after, ok := strings.Cut(v, "-"); ok {
+		return before, after
 	}
 	return v, ""
 }
