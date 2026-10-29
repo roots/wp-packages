@@ -11,21 +11,23 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   govulncheck:
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-        background: true
 
       - uses: actions/setup-go@v7
         with:
-          go-version: stable
+          go-version-file: go.mod
+          cache: false
 
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest
-
-      - wait-all:
 
       - run: govulncheck -test -tags=integration,wporg_live ./...
