@@ -126,33 +126,71 @@ type svnLogReport struct {
 }
 
 type svnLogItem struct {
-	Revision      int64    `xml:"version-name"`
-	Date          string   `xml:"date"`
-	AddedPaths    []string `xml:"added-path"`
-	ModifiedPaths []string `xml:"modified-path"`
-	DeletedPaths  []string `xml:"deleted-path"`
+	Revision      int64     `xml:"version-name"`
+	Date          string    `xml:"date"`
+	AddedPaths    []svnPath `xml:"added-path"`
+	ModifiedPaths []svnPath `xml:"modified-path"`
+	DeletedPaths  []svnPath `xml:"deleted-path"`
+	ReplacedPaths []svnPath `xml:"replaced-path"`
 }
 
-// FetchSVNChangedSlugs queries the SVN DAV log between two revisions and returns
-// a map of unique top-level slugs (plugin/theme names) to the highest SVN revision
-// that touched them within the queried range, plus the highest revision present
-// in the response. The caller must advance its watermark to that returned
-// revision (not to an externally-assumed HEAD), because the REPORT endpoint can
-// lag behind other endpoints; advancing past revisions the REPORT never returned
-// would skip those commits permanently.
-func (c *Client) FetchSVNChangedSlugs(ctx context.Context, baseURL string, fromRev, toRev int64) (map[string]int64, int64, error) {
+type svnPath struct {
+	Path     string `xml:",chardata"`
+	Kind     string `xml:"node-kind,attr"`
+	PropMods string `xml:"prop-mods,attr"`
+}
+
+// SVNLog is a parsed SVN changelog for a revision range.
+type SVNLog struct {
+	// SlugRevisions maps each top-level slug (plugin/theme name) to the highest
+	// revision that touched it within the range.
+	SlugRevisions map[string]int64
+	// MaxRev is the highest revision present in the response.
+	MaxRev int64
+	// MinRev is the lowest revision present in the response (zero if empty).
+	MinRev int64
+	// MinDate is the earliest commit date in the response (zero if empty or
+	// no dates parsed).
+	MinDate time.Time
+	// Commits holds every log item in the response.
+	Commits []SVNCommit
+}
+
+// SVNCommit is a single revision from the SVN changelog.
+type SVNCommit struct {
+	Revision int64
+	Date     time.Time
+	Added    []string
+	Modified []string
+	Deleted  []string
+	Replaced []string
+	// PlainFilePaths holds the paths logged as files without property changes
+	// (node-kind="file", prop-mods="false").
+	PlainFilePaths map[string]bool
+}
+
+// SVNLogLimit is the maximum number of log items FetchSVNLog requests. A range
+// spanning more revisions than this comes back truncated to the newest ones.
+const SVNLogLimit = 50000
+
+// FetchSVNLog queries the SVN DAV log between two revisions (with changed
+// paths). The caller must advance its watermark to the returned MaxRev (not to
+// an externally-assumed HEAD), because the REPORT endpoint can lag behind
+// other endpoints; advancing past revisions the REPORT never returned would
+// skip those commits permanently.
+func (c *Client) FetchSVNLog(ctx context.Context, baseURL string, fromRev, toRev int64) (*SVNLog, error) {
 	body := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>`+
 		`<S:log-report xmlns:S="svn:" xmlns:D="DAV:">`+
 		`<S:start-revision>%d</S:start-revision>`+
 		`<S:end-revision>%d</S:end-revision>`+
 		`<S:discover-changed-paths/>`+
-		`<S:limit>50000</S:limit>`+
-		`</S:log-report>`, toRev, fromRev)
+		`<S:limit>%d</S:limit>`+
+		`</S:log-report>`, toRev, fromRev, SVNLogLimit)
 
 	reqURL := strings.TrimSuffix(baseURL, "/") + "/!svn/bc/0/"
 	req, err := http.NewRequestWithContext(ctx, "REPORT", reqURL, strings.NewReader(body))
 	if err != nil {
-		return nil, 0, fmt.Errorf("creating SVN log request: %w", err)
+		return nil, fmt.Errorf("creating SVN log request: %w", err)
 	}
 	req.Header.Set("Content-Type", "text/xml")
 	req.Header.Set("User-Agent", UserAgent)
@@ -162,21 +200,21 @@ func (c *Client) FetchSVNChangedSlugs(ctx context.Context, baseURL string, fromR
 	davClient := &http.Client{Timeout: 600 * time.Second}
 	resp, err := davClient.Do(req)
 	if err != nil {
-		return nil, 0, fmt.Errorf("fetching SVN log: %w", err)
+		return nil, fmt.Errorf("fetching SVN log: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, 0, fmt.Errorf("SVN log returned status %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("SVN log returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, 0, fmt.Errorf("reading SVN log response: %w", err)
+		return nil, fmt.Errorf("reading SVN log response: %w", err)
 	}
 
-	return parseSVNLogSlugs(data)
+	return parseSVNLog(data)
 }
 
 // sanitizeXML strips illegal XML 1.0 characters (control chars except tab, newline, carriage return).
@@ -190,41 +228,215 @@ func sanitizeXML(data []byte) []byte {
 	return out
 }
 
-// parseSVNLogSlugs extracts unique top-level slugs from SVN log XML and maps
-// each slug to the highest revision that touched it. It also returns the highest
-// revision present in the response (across all log-items, regardless of whether a
-// path yielded a slug) so callers can advance their watermark to exactly what the
-// REPORT covered.
+// parseSVNLog parses SVN log XML. It maps each unique top-level slug to the
+// highest revision that touched it, and records the highest revision present in
+// the response (across all log-items, regardless of whether a path yielded a
+// slug) so callers can advance their watermark to exactly what the REPORT
+// covered.
 // Paths look like "/plugin-name/trunk/file.php" — we extract "plugin-name".
-func parseSVNLogSlugs(data []byte) (map[string]int64, int64, error) {
+func parseSVNLog(data []byte) (*SVNLog, error) {
 	data = sanitizeXML(data)
 	var report svnLogReport
 	if err := xml.Unmarshal(data, &report); err != nil {
-		return nil, 0, fmt.Errorf("parsing SVN log XML: %w", err)
+		return nil, fmt.Errorf("parsing SVN log XML: %w", err)
 	}
 
-	slugRevisions := make(map[string]int64)
-	var maxRev int64
+	log := &SVNLog{SlugRevisions: make(map[string]int64)}
 	for _, item := range report.Items {
-		if item.Revision > maxRev {
-			maxRev = item.Revision
+		if item.Revision > log.MaxRev {
+			log.MaxRev = item.Revision
+		}
+		if log.MinRev == 0 || item.Revision < log.MinRev {
+			log.MinRev = item.Revision
 		}
 
-		allPaths := make([]string, 0, len(item.AddedPaths)+len(item.ModifiedPaths)+len(item.DeletedPaths))
-		allPaths = append(allPaths, item.AddedPaths...)
-		allPaths = append(allPaths, item.ModifiedPaths...)
-		allPaths = append(allPaths, item.DeletedPaths...)
+		commit := SVNCommit{Revision: item.Revision, PlainFilePaths: make(map[string]bool)}
+		collect := func(paths []svnPath) []string {
+			out := make([]string, 0, len(paths))
+			for _, p := range paths {
+				out = append(out, p.Path)
+				if p.Kind == "file" && p.PropMods == "false" {
+					commit.PlainFilePaths[p.Path] = true
+				}
+			}
+			return out
+		}
+		commit.Added = collect(item.AddedPaths)
+		commit.Modified = collect(item.ModifiedPaths)
+		commit.Deleted = collect(item.DeletedPaths)
+		commit.Replaced = collect(item.ReplacedPaths)
+		if t, err := time.Parse(time.RFC3339Nano, item.Date); err == nil {
+			commit.Date = t.UTC()
+			if log.MinDate.IsZero() || commit.Date.Before(log.MinDate) {
+				log.MinDate = commit.Date
+			}
+		}
+		log.Commits = append(log.Commits, commit)
 
-		for _, p := range allPaths {
+		for _, p := range commit.paths() {
 			if slug := slugFromPath(p); slug != "" {
-				if item.Revision > slugRevisions[slug] {
-					slugRevisions[slug] = item.Revision
+				if item.Revision > log.SlugRevisions[slug] {
+					log.SlugRevisions[slug] = item.Revision
 				}
 			}
 		}
 	}
 
-	return slugRevisions, maxRev, nil
+	return log, nil
+}
+
+func (c SVNCommit) paths() []string {
+	all := make([]string, 0, len(c.Added)+len(c.Modified)+len(c.Deleted)+len(c.Replaced))
+	all = append(all, c.Added...)
+	all = append(all, c.Modified...)
+	all = append(all, c.Deleted...)
+	all = append(all, c.Replaced...)
+	return all
+}
+
+// TagChangeSet holds the tag changes found in an SVN log.
+type TagChangeSet struct {
+	// Tags maps slug → tag name → latest date that tag was created or changed.
+	Tags map[string]map[string]time.Time
+	// All maps slug → latest date every tag of the package may have changed at
+	// once: the tags directory (or the package root) was added or replaced.
+	// SVN logs only the copied directory, not the files inside it, so a copy
+	// over /<slug>/tags would otherwise go unseen.
+	All map[string]time.Time
+}
+
+// TagChanges returns the tags whose contents were created or changed in the
+// log, with the latest commit date that did so.
+//
+// Plugin tags live at /<slug>/tags/<tag>/; theme versions live directly at
+// /<slug>/<version>/. Any added, modified, replaced, or deleted path inside a
+// tag counts, including the tag directory itself:
+//   - Deleting a tag can change what a version resolves to when another raw
+//     tag normalizes to the same version (e.g. deleting 1.0 leaves v1.0).
+//   - A modified directory is a property-only change, but the log doesn't say
+//     which property; svn:externals inside a tag changes what Composer's SVN
+//     source checkout (and wp.org's BuddyPress zip) contains.
+//
+// Property changes on /<slug>/tags or /<slug> are ignored: externals defined
+// there don't apply when a tag is checked out, and wp.org builds zips from the
+// tag directory. Deleting those directories isn't a change either.
+//
+// Commits that only touch the tag's readme file are ignored: authors routinely
+// bump "Tested up to" in the stable tag, and treating that as a new release
+// would keep popular plugins permanently inside Composer's cooldown. Only paths
+// logged as files without property changes qualify; a directory copied to a
+// readme path (whose contents SVN doesn't log) is a change, and so is a
+// property change such as svn:special, which turns the readme into a symlink
+// in source checkouts. Replacing a readme always counts: the log shows
+// only the new node's kind, so a readme directory with code in it replaced by a
+// file looks like a file edit.
+func (l *SVNLog) TagChanges(pkgType string) TagChangeSet {
+	changes := make(map[string]map[string]time.Time)
+	all := make(map[string]time.Time)
+	for _, c := range l.Commits {
+		for _, paths := range [][]string{c.Added, c.Replaced} {
+			for _, p := range paths {
+				slug, ok := tagsAncestor(pkgType, p)
+				if !ok {
+					continue
+				}
+				if prev, seen := all[slug]; !seen || c.Date.After(prev) {
+					all[slug] = c.Date
+				}
+			}
+		}
+
+		// tag key (slug + "/" + tag) → touched by a non-readme change
+		touched := make(map[[2]string]bool)
+		mark := func(p string, readmeExempt bool) {
+			slug, tag, rest, ok := splitTagPath(pkgType, p)
+			if !ok {
+				return
+			}
+			key := [2]string{slug, tag}
+			if readmeExempt && c.PlainFilePaths[p] && isReadme(rest) {
+				if _, seen := touched[key]; !seen {
+					touched[key] = false
+				}
+				return
+			}
+			touched[key] = true
+		}
+		for _, paths := range [][]string{c.Added, c.Modified, c.Deleted} {
+			for _, p := range paths {
+				mark(p, true)
+			}
+		}
+		for _, p := range c.Replaced {
+			mark(p, false)
+		}
+
+		for key, changed := range touched {
+			if !changed {
+				continue
+			}
+			slug, tag := key[0], key[1]
+			if changes[slug] == nil {
+				changes[slug] = make(map[string]time.Time)
+			}
+			if prev, ok := changes[slug][tag]; !ok || c.Date.After(prev) {
+				changes[slug][tag] = c.Date
+			}
+		}
+	}
+	return TagChangeSet{Tags: changes, All: all}
+}
+
+// tagsAncestor reports whether p is a directory containing every tag of a
+// package: /<slug> or /<slug>/tags for plugins, /<slug> for themes.
+func tagsAncestor(pkgType, p string) (slug string, ok bool) {
+	parts := strings.Split(strings.Trim(p, "/"), "/")
+	if parts[0] == "" {
+		return "", false
+	}
+	if len(parts) == 1 {
+		return parts[0], true
+	}
+	if pkgType != "theme" && len(parts) == 2 && parts[1] == "tags" {
+		return parts[0], true
+	}
+	return "", false
+}
+
+// splitTagPath splits an SVN path into slug, tag name, and the path inside the
+// tag ("" for the tag directory itself). ok is false for paths outside a tag.
+// Plugin tag names are mapped the way wp.org maps them to API versions.
+func splitTagPath(pkgType, p string) (slug, tag, rest string, ok bool) {
+	parts := strings.SplitN(strings.Trim(p, "/"), "/", 4)
+	if pkgType == "theme" {
+		if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+			return "", "", "", false
+		}
+		slug, tag = parts[0], parts[1]
+		rest = strings.Join(parts[2:], "/")
+		return slug, tag, rest, true
+	}
+	if len(parts) < 3 || parts[0] == "" || parts[1] != "tags" || parts[2] == "" {
+		return "", "", "", false
+	}
+	slug, tag = parts[0], parts[2]
+	// wp.org lists a tag like ".1" as version "0.1" (plugin-directory
+	// cli/class-import.php), so map it the same way to match versions_json.
+	if strings.HasPrefix(tag, ".") {
+		tag = "0" + tag
+	}
+	if len(parts) == 4 {
+		rest = parts[3]
+	}
+	return slug, tag, rest, true
+}
+
+func isReadme(rest string) bool {
+	switch strings.ToLower(rest) {
+	case "readme.txt", "readme.md":
+		return true
+	}
+	return false
 }
 
 // slugFromPath extracts the top-level directory (slug) from an SVN path.

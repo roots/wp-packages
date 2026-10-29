@@ -44,6 +44,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 			content_hash TEXT,
 			deployed_hash TEXT,
 			content_changed_at TEXT,
+			published_times_json TEXT,
 			wp_packages_installs_total INTEGER NOT NULL DEFAULT 0,
 			wp_packages_installs_30d INTEGER NOT NULL DEFAULT 0,
 			last_installed_at TEXT,

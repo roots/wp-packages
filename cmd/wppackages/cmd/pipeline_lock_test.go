@@ -53,3 +53,20 @@ func TestAcquireLock_SucceedsWhenFree(t *testing.T) {
 		t.Fatalf("lock acquisition should succeed on free file: %v", err)
 	}
 }
+
+func TestEnsurePipelineLock_ReusesHeldLock(t *testing.T) {
+	t.Cleanup(resetLockState)
+
+	if err := acquireLock(filepath.Join(t.TempDir(), "pipeline.lock")); err != nil {
+		t.Fatalf("lock acquisition failed: %v", err)
+	}
+	held := pipelineLockFile
+
+	// A pipeline step calling ensurePipelineLock must not try to re-lock.
+	if err := ensurePipelineLock(); err != nil {
+		t.Fatalf("ensurePipelineLock with lock held: %v", err)
+	}
+	if pipelineLockFile != held {
+		t.Error("ensurePipelineLock replaced the held lock")
+	}
+}
