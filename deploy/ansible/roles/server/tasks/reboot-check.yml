@@ -4,10 +4,21 @@
     path: /var/run/reboot-required
   register: reboot_required
 
-- name: Warn about pending reboot
-  debug:
-    msg: >-
-      Reboot required: running kernel {{ ansible_kernel }}, but newer packages
-      are installed. Security fixes in them aren't active until the server
-      is rebooted.
+- name: Read packages requiring reboot
+  slurp:
+    src: /var/run/reboot-required.pkgs
+  register: reboot_required_pkgs
   when: reboot_required.stat.exists
+  failed_when: false
+
+# fail + ignore_errors shows in red and counts as "ignored" in the recap,
+# which is harder to miss in Actions logs than a debug message.
+- name: Warn about pending reboot
+  fail:
+    msg: >-
+      Reboot required. Updated packages aren't active until the server is
+      rebooted{{ (': ' ~ pkgs | join(', ')) if pkgs else '.' }}
+  vars:
+    pkgs: "{{ (reboot_required_pkgs.content | default('') | b64decode).split() | unique }}"
+  when: reboot_required.stat.exists
+  ignore_errors: true
