@@ -4,3 +4,4 @@
   become: true
   tasks:
     - include_tasks: roles/app/tasks/deploy.yml
+    - include_tasks: roles/server/tasks/reboot-check.yml

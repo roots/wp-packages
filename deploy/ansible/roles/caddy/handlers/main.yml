@@ -3,3 +3,8 @@
   service:
     name: caddy
     state: reloaded
+
+- name: Restart Caddy
+  service:
+    name: caddy
+    state: restarted
