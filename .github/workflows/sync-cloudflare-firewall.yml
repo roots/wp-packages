@@ -1,0 +1,33 @@
+name: sync-cloudflare-firewall
+
+on:
+  schedule:
+    - cron: "0 7 * * 1" # weekly, Mondays at 7am UTC
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Show changes without applying them
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-cloudflare-firewall
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync DigitalOcean firewall with Cloudflare IPs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Sync firewall
+        env:
+          DO_TOKEN: ${{ secrets.DO_FIREWALL_TOKEN }}
+          FIREWALL_ID: 79ef84be-65ba-4937-bbd7-e328bfc4324d
+          DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
+        run: scripts/sync-cloudflare-firewall.sh $DRY_RUN
