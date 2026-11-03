@@ -3,3 +3,9 @@
   service:
     name: fail2ban
     state: restarted
+
+- name: Restart CVE-2026-98432 mitigation
+  systemd:
+    name: cve-2026-98432
+    state: restarted
+    daemon_reload: yes

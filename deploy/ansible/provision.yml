@@ -7,3 +7,5 @@
     - caddy
     - wppackages
     - app
+  post_tasks:
+    - include_tasks: roles/server/tasks/reboot-check.yml

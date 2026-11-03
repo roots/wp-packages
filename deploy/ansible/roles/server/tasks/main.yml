@@ -12,6 +12,7 @@
       - unzip
       - acl
       - ufw
+      - nftables
       - fail2ban
       - sqlite3
       - software-properties-common
@@ -75,6 +76,43 @@
 - name: Enable UFW
   ufw:
     state: enabled
+
+# CVE-2026-98432: the public remote-root exploit needs an MPTCP listener,
+# and Go 1.24+ binaries (including Caddy) open one by default. Sockets
+# that are already open stay MPTCP until their service restarts.
+- name: Disable MPTCP
+  sysctl:
+    name: net.mptcp.enabled
+    value: "0"
+    sysctl_file: /etc/sysctl.d/99-disable-mptcp.conf
+    reload: yes
+  notify: Restart Caddy
+
+- name: Install CVE-2026-98432 nftables rule
+  template:
+    src: cve-2026-98432.nft.j2
+    dest: /etc/cve-2026-98432.nft
+    owner: root
+    group: root
+    mode: "0644"
+    validate: nft -c -f %s
+  notify: Restart CVE-2026-98432 mitigation
+
+- name: Install CVE-2026-98432 mitigation service
+  template:
+    src: cve-2026-98432.service.j2
+    dest: /etc/systemd/system/cve-2026-98432.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart CVE-2026-98432 mitigation
+
+- name: Enable CVE-2026-98432 mitigation service
+  systemd:
+    name: cve-2026-98432
+    state: started
+    enabled: yes
+    daemon_reload: yes
 
 - name: Enable fail2ban
   service:
