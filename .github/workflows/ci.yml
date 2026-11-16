@@ -40,6 +40,17 @@ jobs:
       - name: Check if go.mod/go.sum are tidy
         run: go mod tidy -diff
 
+  go-fix:
+    name: Go Fix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+      - name: Check for suspicious constructs or opportunities for improvement
+        run: go fix -diff -tags=integration,wporg_live ./...
+
   test:
     name: Go Test
     runs-on: ubuntu-latest
