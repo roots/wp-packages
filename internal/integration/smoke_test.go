@@ -132,7 +132,7 @@ func TestSmoke(t *testing.T) {
 			t.Fatal("no version entries for akismet")
 		}
 
-		// Verify version entry structure
+		// Verify every version entry's structure
 		for i, entry := range akismet {
 			e, ok := entry.(map[string]any)
 			if !ok {
@@ -162,7 +162,6 @@ func TestSmoke(t *testing.T) {
 					t.Errorf("version %v type: got %s, want wordpress-plugin", ver, typ)
 				}
 			}
-			break // checking one entry is sufficient
 		}
 	})
 
