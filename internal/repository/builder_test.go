@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/roots/wp-packages/internal/composer"
 	"github.com/roots/wp-packages/internal/db"
 )
 
@@ -602,4 +604,61 @@ func readP2Versions(t *testing.T, buildDir, composerName, suffix string) map[str
 		byVersion[e["version"].(string)] = e
 	}
 	return byVersion
+}
+
+// TestBuildMatchesSerializePackage guards against the two p2 writers drifting
+// apart: the local build (deploy/rollback) and SerializePackage (HTTP handler,
+// DB-driven sync) must emit identical bytes for the same package row.
+func TestBuildMatchesSerializePackage(t *testing.T) {
+	database := setupTestDB(t)
+
+	const pluginVersions = `{"1.0":"https://downloads.wordpress.org/plugin/akismet.1.0.zip","10.0":"https://downloads.wordpress.org/plugin/akismet.10.0.zip","2.0-beta1":"https://downloads.wordpress.org/plugin/akismet.2.0-beta1.zip","2.0":"https://downloads.wordpress.org/plugin/akismet.2.0.zip"}`
+	const pluginTimes = `{"1.0":"2024-01-01T00:00:00Z","10.0":"2026-01-01T00:00:00Z","2.0":"2025-01-01T00:00:00Z"}`
+	const themeVersions = `{"1.2":"https://downloads.wordpress.org/theme/astra.1.2.zip","1.10":"https://downloads.wordpress.org/theme/astra.1.10.zip"}`
+	const lastCommitted = "2026-10-12T00:00:00Z"
+
+	_, _ = database.Exec(`INSERT INTO packages (type, name, display_name, description, author, homepage, versions_json, is_active, last_committed, trunk_revision, published_times_json, last_sync_run_id, created_at, updated_at)
+		VALUES ('plugin', 'akismet', 'Akismet', 'Spam protection', 'Automattic', 'https://akismet.com', ?, 1, ?, 3470087, ?, 1, datetime('now'), datetime('now'))`,
+		pluginVersions, lastCommitted, pluginTimes)
+	_, _ = database.Exec(`INSERT INTO packages (type, name, display_name, versions_json, is_active, last_sync_run_id, created_at, updated_at)
+		VALUES ('theme', 'astra', 'Astra', ?, 1, 1, datetime('now'), datetime('now'))`, themeVersions)
+
+	result, err := Build(context.Background(), database, BuildOpts{
+		OutputDir: t.TempDir(),
+		Logger:    slog.Default(),
+	})
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	pluginMeta := PackageMeta{
+		Description:    "Spam protection",
+		Homepage:       "https://akismet.com",
+		Author:         "Automattic",
+		LastUpdated:    lastCommitted,
+		TrunkRevision:  new(int64(3470087)),
+		PublishedTimes: composer.ParsePublishedTimes(new(pluginTimes)),
+	}
+
+	cases := []struct {
+		file, pkgType, name, versions string
+		meta                          PackageMeta
+	}{
+		{"p2/wp-plugin/akismet.json", "plugin", "akismet", pluginVersions, pluginMeta},
+		{"p2/wp-plugin/akismet~dev.json", "plugin", "akismet~dev", pluginVersions, pluginMeta},
+		{"p2/wp-theme/astra.json", "theme", "astra", themeVersions, PackageMeta{}},
+	}
+	for _, c := range cases {
+		built, err := os.ReadFile(filepath.Join(result.BuildDir, c.file))
+		if err != nil {
+			t.Fatalf("reading %s: %v", c.file, err)
+		}
+		serialized, err := composer.SerializePackage(c.pkgType, c.name, c.versions, c.meta)
+		if err != nil {
+			t.Fatalf("serializing %s: %v", c.name, err)
+		}
+		if !bytes.Equal(built, serialized) {
+			t.Errorf("%s: build output differs from SerializePackage\nbuild:     %s\nserialize: %s", c.file, built, serialized)
+		}
+	}
 }
