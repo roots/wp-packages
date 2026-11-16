@@ -161,8 +161,12 @@ func TestWpOrgLive(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), &data); err != nil {
 			t.Fatalf("invalid p2 response: %v", err)
 		}
-		if _, ok := data["packages"]; !ok {
-			t.Error("missing packages key")
+		pkgs, ok := data["packages"].(map[string]any)
+		if !ok {
+			t.Fatal("missing packages key")
+		}
+		if _, ok := pkgs["wp-plugin/akismet"].([]any); !ok {
+			t.Errorf("wp-plugin/akismet should be a list of versions, got %T", pkgs["wp-plugin/akismet"])
 		}
 	})
 

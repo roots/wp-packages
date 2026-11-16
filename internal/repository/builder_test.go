@@ -219,11 +219,7 @@ func TestBuildDevTrunkSplit(t *testing.T) {
 	}
 
 	// akismet.json should NOT contain dev-trunk
-	data, _ := os.ReadFile(filepath.Join(result.BuildDir, "p2/wp-plugin/akismet.json"))
-	var tagged map[string]any
-	_ = json.Unmarshal(data, &tagged)
-	pkgs := tagged["packages"].(map[string]any)
-	versions := pkgs["wp-plugin/akismet"].(map[string]any)
+	versions := readP2Versions(t, result.BuildDir, "wp-plugin/akismet", "")
 	if _, ok := versions["dev-trunk"]; ok {
 		t.Error("akismet.json should not contain dev-trunk")
 	}
@@ -232,12 +228,7 @@ func TestBuildDevTrunkSplit(t *testing.T) {
 	}
 
 	// akismet~dev.json should contain dev-trunk with source but no dist
-	devData, _ := os.ReadFile(filepath.Join(result.BuildDir, "p2/wp-plugin/akismet~dev.json"))
-	var dev map[string]any
-	_ = json.Unmarshal(devData, &dev)
-	devPkgs := dev["packages"].(map[string]any)
-	devVersions := devPkgs["wp-plugin/akismet"].(map[string]any)
-	devTrunk := devVersions["dev-trunk"].(map[string]any)
+	devTrunk := readP2Versions(t, result.BuildDir, "wp-plugin/akismet", "~dev")["dev-trunk"]
 	if _, ok := devTrunk["source"]; !ok {
 		t.Error("dev-trunk should have source")
 	}
@@ -292,12 +283,7 @@ func TestBuildDevTrunkRevision(t *testing.T) {
 	}
 
 	// akismet~dev.json should have trunk@3470087 reference
-	devData, _ := os.ReadFile(filepath.Join(result.BuildDir, "p2/wp-plugin/akismet~dev.json"))
-	var dev map[string]any
-	_ = json.Unmarshal(devData, &dev)
-	devPkgs := dev["packages"].(map[string]any)
-	devVersions := devPkgs["wp-plugin/akismet"].(map[string]any)
-	devTrunk := devVersions["dev-trunk"].(map[string]any)
+	devTrunk := readP2Versions(t, result.BuildDir, "wp-plugin/akismet", "~dev")["dev-trunk"]
 	source := devTrunk["source"].(map[string]any)
 	if source["reference"] != "trunk@3470087" {
 		t.Errorf("reference = %q, want trunk@3470087", source["reference"])
@@ -307,12 +293,7 @@ func TestBuildDevTrunkRevision(t *testing.T) {
 	}
 
 	// no-rev~dev.json should have plain "trunk" reference (cold start)
-	noRevData, _ := os.ReadFile(filepath.Join(result.BuildDir, "p2/wp-plugin/no-rev~dev.json"))
-	var noRev map[string]any
-	_ = json.Unmarshal(noRevData, &noRev)
-	noRevPkgs := noRev["packages"].(map[string]any)
-	noRevVersions := noRevPkgs["wp-plugin/no-rev"].(map[string]any)
-	noRevTrunk := noRevVersions["dev-trunk"].(map[string]any)
+	noRevTrunk := readP2Versions(t, result.BuildDir, "wp-plugin/no-rev", "~dev")["dev-trunk"]
 	noRevSource := noRevTrunk["source"].(map[string]any)
 	if noRevSource["reference"] != "trunk" {
 		t.Errorf("reference = %q, want trunk (no revision)", noRevSource["reference"])
@@ -599,4 +580,26 @@ func TestBuildEmpty(t *testing.T) {
 	if result.PackagesTotal != 0 {
 		t.Errorf("expected 0 packages, got %d", result.PackagesTotal)
 	}
+}
+
+// readP2Versions decodes a built p2 file, asserting packages[name] is the list
+// form Composer documents for metadata-url, and returns the entries keyed by
+// version for convenient lookups.
+func readP2Versions(t *testing.T, buildDir, composerName, suffix string) map[string]map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(buildDir, "p2", composerName+suffix+".json"))
+	if err != nil {
+		t.Fatalf("reading p2 file: %v", err)
+	}
+	var payload struct {
+		Packages map[string][]map[string]any `json:"packages"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("decoding p2 file: %v", err)
+	}
+	byVersion := make(map[string]map[string]any)
+	for _, e := range payload.Packages[composerName] {
+		byVersion[e["version"].(string)] = e
+	}
+	return byVersion
 }

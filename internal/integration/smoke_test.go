@@ -122,9 +122,9 @@ func TestSmoke(t *testing.T) {
 			t.Fatal("missing 'packages' key in p2 response")
 		}
 
-		akismet, ok := pkgs["wp-plugin/akismet"].(map[string]any)
+		akismet, ok := pkgs["wp-plugin/akismet"].([]any)
 		if !ok {
-			t.Fatal("missing wp-plugin/akismet in packages")
+			t.Fatalf("wp-plugin/akismet should be a list of versions, got %T", pkgs["wp-plugin/akismet"])
 		}
 
 		// Check at least one version entry
@@ -133,16 +133,17 @@ func TestSmoke(t *testing.T) {
 		}
 
 		// Verify version entry structure
-		for ver, entry := range akismet {
+		for i, entry := range akismet {
 			e, ok := entry.(map[string]any)
 			if !ok {
-				t.Fatalf("version %s is not an object", ver)
+				t.Fatalf("entry %d is not an object", i)
 			}
+			ver := e["version"]
 
 			// Required fields
 			for _, field := range []string{"name", "version", "type", "dist", "source", "require"} {
 				if _, ok := e[field]; !ok {
-					t.Errorf("version %s missing field: %s", ver, field)
+					t.Errorf("version %v missing field: %s", ver, field)
 				}
 			}
 
@@ -150,7 +151,7 @@ func TestSmoke(t *testing.T) {
 			if dist, ok := e["dist"].(map[string]any); ok {
 				if url, ok := dist["url"].(string); ok {
 					if !strings.Contains(url, "downloads.wordpress.org") {
-						t.Errorf("version %s dist URL unexpected: %s", ver, url)
+						t.Errorf("version %v dist URL unexpected: %s", ver, url)
 					}
 				}
 			}
@@ -158,7 +159,7 @@ func TestSmoke(t *testing.T) {
 			// type should be wordpress-plugin
 			if typ, ok := e["type"].(string); ok {
 				if typ != "wordpress-plugin" {
-					t.Errorf("version %s type: got %s, want wordpress-plugin", ver, typ)
+					t.Errorf("version %v type: got %s, want wordpress-plugin", ver, typ)
 				}
 			}
 			break // checking one entry is sufficient
