@@ -2,6 +2,7 @@ package blog
 
 import (
 	"encoding/json"
+	"html"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -73,7 +74,9 @@ func (c *PostsCache) fetch() {
 
 	posts := make([]Post, len(raw))
 	for i, r := range raw {
-		posts[i] = Post{Title: r.Title.Rendered, Link: r.Link}
+		// title.rendered is HTML (wptexturize converts quotes to entities like
+		// &#8217;); decode it so the template's auto-escaping doesn't double-escape.
+		posts[i] = Post{Title: html.UnescapeString(r.Title.Rendered), Link: r.Link}
 	}
 
 	c.mu.Lock()
