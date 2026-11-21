@@ -12,22 +12,35 @@ on:
       - main
 
 permissions:
-  contents: read
+    security-events: write
+    contents: read
+    actions: read
 
 jobs:
   govulncheck:
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+        background: true
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
-          cache: false
+          go-version: stable
 
-      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      - run: govulncheck -test -tags=integration,wporg_live ./...
+      - wait-all:
+
+      - name: Run govulncheck and save to file
+        run: govulncheck -format=sarif -test -tags="${TAGS}" ./... > "${OUTPUT_FILE}"
+        env:
+          TAGS: integration,wporg_live
+          OUTPUT_FILE: ${{ runner.temp }}/govulncheck.sarif
+
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ runner.temp }}/govulncheck.sarif
+          category: govulncheck
