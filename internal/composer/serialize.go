@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -159,8 +160,32 @@ func SerializePackage(pkgType, name string, versionsJSON string, meta PackageMet
 
 	payload := map[string]any{
 		"packages": map[string]any{
-			composerName: entries,
+			composerName: VersionList(entries),
 		},
 	}
 	return json.Marshal(payload)
+}
+
+// VersionList converts version-keyed entries into the list form Composer
+// documents for metadata-url (p2) responses. Entries are ordered roughly newest
+// first by version.Compare (pre-release suffixes compare lexically, so this
+// isn't exact Composer ordering; Composer doesn't rely on order here). Ties
+// (e.g. "1.0" vs "1.0.0") fall back to the version string so the output stays
+// byte-stable across runs.
+func VersionList(entries map[string]VersionEntry) []VersionEntry {
+	vers := make([]string, 0, len(entries))
+	for ver := range entries {
+		vers = append(vers, ver)
+	}
+	slices.SortFunc(vers, func(a, b string) int {
+		if c := version.Compare(b, a); c != 0 {
+			return c
+		}
+		return strings.Compare(b, a)
+	})
+	list := make([]VersionEntry, len(vers))
+	for i, ver := range vers {
+		list[i] = entries[ver]
+	}
+	return list
 }
