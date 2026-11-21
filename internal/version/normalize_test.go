@@ -171,7 +171,7 @@ func TestNormalizeIsIdempotent(t *testing.T) {
 func TestNormalizeVersionsCollisionIsDeterministic(t *testing.T) {
 	// Both normalize to 1.0; the tag already in normalized form wins, and
 	// otherwise the lexically smallest raw tag, regardless of map order.
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		got := NormalizeVersions(map[string]string{
 			"v1.0": "https://example.com/v1.0.zip",
 			"1.0":  "https://example.com/1.0.zip",

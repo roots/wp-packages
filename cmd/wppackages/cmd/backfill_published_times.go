@@ -113,10 +113,7 @@ func scanTagChangesSince(ctx context.Context, client *wporg.Client, logger *slog
 		All:  make(map[string]time.Time),
 	}
 	for to := endRev; to > 0; {
-		from := to - chunkSize + 1
-		if from < 1 {
-			from = 1
-		}
+		from := max(to-chunkSize+1, 1)
 
 		var svnLog *wporg.SVNLog
 		var err error
