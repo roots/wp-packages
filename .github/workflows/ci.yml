@@ -68,7 +68,7 @@ jobs:
           go-version-file: go.mod
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.2"
+          php-version: latest
           tools: composer:v2
       - name: Create stub CSS for embed
         run: touch internal/http/static/assets/styles/app.css
