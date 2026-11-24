@@ -19,8 +19,9 @@ type Entry struct {
 }
 
 // Parse splits an Accept header into entries, preserving client order.
-// Position is significant — used as the tiebreaker when two ranges
-// have equal specificity and q-value.
+// Position is significant: it breaks ties between equally specific ranges
+// that match the same type, and between candidates that match with equal
+// q-value and equal specificity.
 func Parse(header string) []Entry {
 	if header == "" {
 		return nil
@@ -88,6 +89,7 @@ func Preferred(header string, produces []string) string {
 
 	bestType := ""
 	bestQ := -1.0
+	bestSpec := -1
 	bestPos := -1
 
 	for _, candidate := range produces {
@@ -114,10 +116,18 @@ func Preferred(header string, produces []string) string {
 			continue
 		}
 
-		// Across candidates: highest q wins; tie-break on client order
-		// so `Accept: text/markdown, text/html, */*` picks text/markdown.
-		if matchedQ > bestQ || (matchedQ == bestQ && (bestPos < 0 || matchedPos < bestPos)) {
+		// Across candidates: highest q wins. On equal q, the candidate
+		// matched by the more specific range wins, so a named type beats
+		// one that only matched a wildcard (`*/*, text/markdown` picks
+		// text/markdown; `*/*, text/html` picks text/html). Remaining ties
+		// go to client order, so `Accept: text/markdown, text/html, */*`
+		// picks text/markdown.
+		if bestPos < 0 ||
+			matchedQ > bestQ ||
+			(matchedQ == bestQ && matchedSpec > bestSpec) ||
+			(matchedQ == bestQ && matchedSpec == bestSpec && matchedPos < bestPos) {
 			bestQ = matchedQ
+			bestSpec = matchedSpec
 			bestPos = matchedPos
 			bestType = candidate
 		}
