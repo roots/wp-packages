@@ -29,6 +29,14 @@ func TestPreferred(t *testing.T) {
 		{"browser-style accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8", produces, "text/html"},
 		{"agent asking for markdown first", "text/markdown, text/html;q=0.9, */*;q=0.5", produces, "text/markdown"},
 		{"agent asking for markdown only with html rejected", "text/markdown, text/html;q=0", produces, "text/markdown"},
+		{"agent header with equal q picks markdown", "text/markdown, text/html, */*", produces, "text/markdown"},
+		{"named markdown beats wildcard", "text/markdown, */*", produces, "text/markdown"},
+		{"named markdown beats earlier wildcard", "*/*, text/markdown", produces, "text/markdown"},
+		{"named markdown beats earlier text/* glob", "text/*, text/markdown", produces, "text/markdown"},
+		{"named html beats earlier wildcard", "*/*, text/html", produces, "text/html"},
+		{"named html beats earlier text/* glob", "text/*, text/html", produces, "text/html"},
+		{"higher q still beats specificity", "text/markdown;q=0.9, */*", produces, "text/html"},
+		{"named type beats wildcard at equal q below 1", "*/*;q=0.8, text/markdown;q=0.8", produces, "text/markdown"},
 	}
 
 	for _, tt := range tests {
