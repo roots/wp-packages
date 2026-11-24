@@ -167,22 +167,21 @@ func SerializePackage(pkgType, name string, versionsJSON string, meta PackageMet
 }
 
 // VersionList converts version-keyed entries into the list form Composer
-// documents for metadata-url (p2) responses. Entries are ordered roughly newest
-// first by version.Compare (pre-release suffixes compare lexically, so this
-// isn't exact Composer ordering; Composer doesn't rely on order here). Ties
-// (e.g. "1.0" vs "1.0.0") fall back to the version string so the output stays
-// byte-stable across runs.
+// documents for metadata-url (p2) responses, sorted by version string.
+//
+// The order is deliberate: when entries are equal versions to Composer (e.g.
+// "1.0" / "1.0.0", "2.0-b1" / "2.0-beta1", "1.0-stable" / "1.0.0"), which are
+// separate wp.org tags that can hold different code, Composer installs
+// whichever is listed first. Sorting by string reproduces the order of the
+// version-keyed object form this replaced (encoding/json sorts map keys), so
+// `composer update`, `composer require` and every other first-match lookup
+// keep resolving the same tags as before.
 func VersionList(entries map[string]VersionEntry) []VersionEntry {
 	vers := make([]string, 0, len(entries))
 	for ver := range entries {
 		vers = append(vers, ver)
 	}
-	slices.SortFunc(vers, func(a, b string) int {
-		if c := version.Compare(b, a); c != 0 {
-			return c
-		}
-		return strings.Compare(b, a)
-	})
+	slices.Sort(vers)
 	list := make([]VersionEntry, len(vers))
 	for i, ver := range vers {
 		list[i] = entries[ver]

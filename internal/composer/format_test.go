@@ -79,7 +79,7 @@ func TestSerializePackageVersionList(t *testing.T) {
 	for _, e := range payload.Packages["wp-plugin/akismet"] {
 		got = append(got, e["version"].(string))
 	}
-	want := []string{"10.0", "2.0", "2.0-beta1", "1.0.0", "1.0"}
+	want := []string{"1.0", "1.0.0", "10.0", "2.0", "2.0-beta1"}
 	if !slices.Equal(got, want) {
 		t.Errorf("version order = %v, want %v", got, want)
 	}
@@ -90,6 +90,49 @@ func TestSerializePackageVersionList(t *testing.T) {
 	}
 	if !bytes.Equal(data, again) {
 		t.Error("serialized output is not byte-stable")
+	}
+}
+
+// TestVersionListMatchesObjectOrder guards which tag Composer installs when
+// tags are equal versions to it (it takes the first listed): the list must
+// keep the order of the version-keyed object form it replaced.
+func TestVersionListMatchesObjectOrder(t *testing.T) {
+	entries := map[string]VersionEntry{}
+	for _, ver := range []string{
+		"1.0", "1.0.0", "1.0.0.0", "2.1", "2.01", "1.1.0", "1.1.00",
+		"1.0-stable", "2.0-beta1", "2.0-beta.1", "2.0-b1", "3.0-RC1", "3.0-rc1",
+		"1.10", "1.9", "10.0",
+	} {
+		entries[ver] = VersionEntry{"version": ver}
+	}
+
+	object, err := json.Marshal(entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(object))
+	if _, err := dec.Token(); err != nil {
+		t.Fatal(err)
+	}
+	var want []string
+	for dec.More() {
+		key, err := dec.Token()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, key.(string))
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var got []string
+	for _, e := range VersionList(entries) {
+		got = append(got, e["version"].(string))
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("list order = %v, want object order %v", got, want)
 	}
 }
 

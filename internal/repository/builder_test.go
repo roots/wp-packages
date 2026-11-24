@@ -612,7 +612,7 @@ func readP2Versions(t *testing.T, buildDir, composerName, suffix string) map[str
 func TestBuildMatchesSerializePackage(t *testing.T) {
 	database := setupTestDB(t)
 
-	const pluginVersions = `{"1.0":"https://downloads.wordpress.org/plugin/akismet.1.0.zip","10.0":"https://downloads.wordpress.org/plugin/akismet.10.0.zip","2.0-beta1":"https://downloads.wordpress.org/plugin/akismet.2.0-beta1.zip","2.0":"https://downloads.wordpress.org/plugin/akismet.2.0.zip"}`
+	const pluginVersions = `{"1.0":"https://downloads.wordpress.org/plugin/akismet.1.0.zip","1.0.0":"https://downloads.wordpress.org/plugin/akismet.1.0.0.zip","10.0":"https://downloads.wordpress.org/plugin/akismet.10.0.zip","2.0-beta1":"https://downloads.wordpress.org/plugin/akismet.2.0-beta1.zip","2.0":"https://downloads.wordpress.org/plugin/akismet.2.0.zip"}`
 	const pluginTimes = `{"1.0":"2024-01-01T00:00:00Z","10.0":"2026-01-01T00:00:00Z","2.0":"2025-01-01T00:00:00Z"}`
 	const themeVersions = `{"1.2":"https://downloads.wordpress.org/theme/astra.1.2.zip","1.10":"https://downloads.wordpress.org/theme/astra.1.10.zip"}`
 	const lastCommitted = "2026-10-12T00:00:00Z"

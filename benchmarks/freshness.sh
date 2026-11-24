@@ -108,7 +108,8 @@ get_versions_p2() {
   local data
   data=$(curl -sf -H 'User-Agent: Composer/2.7' "$url" 2>/dev/null) || return 1
 
-  echo "$data" | jq -r ".packages.\"${package}\" | keys[]" 2>/dev/null | sort -V
+  # p2 lists versions (WP Packages); older repos may still key them by version
+  echo "$data" | jq -r ".packages.\"${package}\" | if type == \"array\" then .[].version else keys[] end" 2>/dev/null | sort -V
 }
 
 # Fetch version list via provider-includes (WPackagist)
