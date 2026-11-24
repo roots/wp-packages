@@ -156,12 +156,16 @@ func TestP2Package_PublishedTime(t *testing.T) {
 	}
 
 	var body struct {
-		Packages map[string]map[string]map[string]any `json:"packages"`
+		Packages map[string][]map[string]any `json:"packages"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got := body.Packages["wp-plugin/akismet"]["5.3.7"]["published-time"]; got != "2026-09-01T00:00:00Z" {
+	entries := body.Packages["wp-plugin/akismet"]
+	if len(entries) != 1 || entries[0]["version"] != "5.3.7" {
+		t.Fatalf("entries = %v, want single 5.3.7", entries)
+	}
+	if got := entries[0]["published-time"]; got != "2026-09-01T00:00:00Z" {
 		t.Errorf("published-time = %v, want 2026-09-01T00:00:00Z", got)
 	}
 }
@@ -176,14 +180,18 @@ func TestP2Package_DevFile(t *testing.T) {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
 
-	var body map[string]any
+	var body struct {
+		Packages map[string][]map[string]any `json:"packages"`
+	}
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 
-	packages := body["packages"].(map[string]any)
-	akismet := packages["wp-plugin/akismet"].(map[string]any)
-	devTrunk := akismet["dev-trunk"].(map[string]any)
+	entries := body.Packages["wp-plugin/akismet"]
+	if len(entries) != 1 || entries[0]["version"] != "dev-trunk" {
+		t.Fatalf("entries = %v, want single dev-trunk", entries)
+	}
+	devTrunk := entries[0]
 
 	// Dev versions should not have dist
 	if _, ok := devTrunk["dist"]; ok {

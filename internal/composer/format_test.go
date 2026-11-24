@@ -1,7 +1,9 @@
 package composer
 
 import (
+	"bytes"
 	"encoding/json"
+	"slices"
 	"testing"
 )
 
@@ -44,13 +46,93 @@ func TestSerializePackagePublishedTime(t *testing.T) {
 	}
 
 	var payload struct {
-		Packages map[string]map[string]map[string]any `json:"packages"`
+		Packages map[string][]map[string]any `json:"packages"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		t.Fatal(err)
 	}
-	if got := payload.Packages["wp-plugin/akismet"]["1.0"]["published-time"]; got != "2026-09-01T00:00:00Z" {
+	entries := payload.Packages["wp-plugin/akismet"]
+	if len(entries) != 1 {
+		t.Fatalf("got %d entries, want 1", len(entries))
+	}
+	if got := entries[0]["published-time"]; got != "2026-09-01T00:00:00Z" {
 		t.Errorf("serialized published-time = %v", got)
+	}
+}
+
+// TestSerializePackageVersionList guards the metadata-url shape: Composer
+// documents packages[name] as a list of versions, and strict v2 clients
+// reject the version-keyed object form.
+func TestSerializePackageVersionList(t *testing.T) {
+	versionsJSON := `{"1.0":"https://example.com/a.zip","10.0":"https://example.com/b.zip","2.0-beta1":"https://example.com/c.zip","2.0":"https://example.com/d.zip","1.0.0":"https://example.com/e.zip"}`
+	data, err := SerializePackage("plugin", "akismet", versionsJSON, PackageMeta{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload struct {
+		Packages map[string][]map[string]any `json:"packages"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("packages[name] should be a list: %v", err)
+	}
+	var got []string
+	for _, e := range payload.Packages["wp-plugin/akismet"] {
+		got = append(got, e["version"].(string))
+	}
+	want := []string{"1.0", "1.0.0", "10.0", "2.0", "2.0-beta1"}
+	if !slices.Equal(got, want) {
+		t.Errorf("version order = %v, want %v", got, want)
+	}
+
+	again, err := SerializePackage("plugin", "akismet", versionsJSON, PackageMeta{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(data, again) {
+		t.Error("serialized output is not byte-stable")
+	}
+}
+
+// TestVersionListMatchesObjectOrder guards which tag Composer installs when
+// tags are equal versions to it (it takes the first listed): the list must
+// keep the order of the version-keyed object form it replaced.
+func TestVersionListMatchesObjectOrder(t *testing.T) {
+	entries := map[string]VersionEntry{}
+	for _, ver := range []string{
+		"1.0", "1.0.0", "1.0.0.0", "2.1", "2.01", "1.1.0", "1.1.00",
+		"1.0-stable", "2.0-beta1", "2.0-beta.1", "2.0-b1", "3.0-RC1", "3.0-rc1",
+		"1.10", "1.9", "10.0",
+	} {
+		entries[ver] = VersionEntry{"version": ver}
+	}
+
+	object, err := json.Marshal(entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(object))
+	if _, err := dec.Token(); err != nil {
+		t.Fatal(err)
+	}
+	var want []string
+	for dec.More() {
+		key, err := dec.Token()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, key.(string))
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var got []string
+	for _, e := range VersionList(entries) {
+		got = append(got, e["version"].(string))
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("list order = %v, want object order %v", got, want)
 	}
 }
 
@@ -86,7 +168,7 @@ func TestSerializePackageEveryTaggedVersionHasPublishedTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	var payload struct {
-		Packages map[string]map[string]map[string]any `json:"packages"`
+		Packages map[string][]map[string]any `json:"packages"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		t.Fatal(err)
@@ -95,9 +177,9 @@ func TestSerializePackageEveryTaggedVersionHasPublishedTime(t *testing.T) {
 	if len(entries) != 3 {
 		t.Fatalf("got %d entries, want 3", len(entries))
 	}
-	for ver, e := range entries {
+	for _, e := range entries {
 		if e["published-time"] == nil {
-			t.Errorf("version %q has no published-time", ver)
+			t.Errorf("version %v has no published-time", e["version"])
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/roots/wp-packages/internal/composer"
 	"github.com/roots/wp-packages/internal/db"
 )
 
@@ -219,11 +221,7 @@ func TestBuildDevTrunkSplit(t *testing.T) {
 	}
 
 	// akismet.json should NOT contain dev-trunk
-	data, _ := os.ReadFile(filepath.Join(result.BuildDir, "p2/wp-plugin/akismet.json"))
-	var tagged map[string]any
-	_ = json.Unmarshal(data, &tagged)
-	pkgs := tagged["packages"].(map[string]any)
-	versions := pkgs["wp-plugin/akismet"].(map[string]any)
+	versions := readP2Versions(t, result.BuildDir, "wp-plugin/akismet", "")
 	if _, ok := versions["dev-trunk"]; ok {
 		t.Error("akismet.json should not contain dev-trunk")
 	}
@@ -232,12 +230,7 @@ func TestBuildDevTrunkSplit(t *testing.T) {
 	}
 
 	// akismet~dev.json should contain dev-trunk with source but no dist
-	devData, _ := os.ReadFile(filepath.Join(result.BuildDir, "p2/wp-plugin/akismet~dev.json"))
-	var dev map[string]any
-	_ = json.Unmarshal(devData, &dev)
-	devPkgs := dev["packages"].(map[string]any)
-	devVersions := devPkgs["wp-plugin/akismet"].(map[string]any)
-	devTrunk := devVersions["dev-trunk"].(map[string]any)
+	devTrunk := readP2Versions(t, result.BuildDir, "wp-plugin/akismet", "~dev")["dev-trunk"]
 	if _, ok := devTrunk["source"]; !ok {
 		t.Error("dev-trunk should have source")
 	}
@@ -292,12 +285,7 @@ func TestBuildDevTrunkRevision(t *testing.T) {
 	}
 
 	// akismet~dev.json should have trunk@3470087 reference
-	devData, _ := os.ReadFile(filepath.Join(result.BuildDir, "p2/wp-plugin/akismet~dev.json"))
-	var dev map[string]any
-	_ = json.Unmarshal(devData, &dev)
-	devPkgs := dev["packages"].(map[string]any)
-	devVersions := devPkgs["wp-plugin/akismet"].(map[string]any)
-	devTrunk := devVersions["dev-trunk"].(map[string]any)
+	devTrunk := readP2Versions(t, result.BuildDir, "wp-plugin/akismet", "~dev")["dev-trunk"]
 	source := devTrunk["source"].(map[string]any)
 	if source["reference"] != "trunk@3470087" {
 		t.Errorf("reference = %q, want trunk@3470087", source["reference"])
@@ -307,12 +295,7 @@ func TestBuildDevTrunkRevision(t *testing.T) {
 	}
 
 	// no-rev~dev.json should have plain "trunk" reference (cold start)
-	noRevData, _ := os.ReadFile(filepath.Join(result.BuildDir, "p2/wp-plugin/no-rev~dev.json"))
-	var noRev map[string]any
-	_ = json.Unmarshal(noRevData, &noRev)
-	noRevPkgs := noRev["packages"].(map[string]any)
-	noRevVersions := noRevPkgs["wp-plugin/no-rev"].(map[string]any)
-	noRevTrunk := noRevVersions["dev-trunk"].(map[string]any)
+	noRevTrunk := readP2Versions(t, result.BuildDir, "wp-plugin/no-rev", "~dev")["dev-trunk"]
 	noRevSource := noRevTrunk["source"].(map[string]any)
 	if noRevSource["reference"] != "trunk" {
 		t.Errorf("reference = %q, want trunk (no revision)", noRevSource["reference"])
@@ -598,5 +581,84 @@ func TestBuildEmpty(t *testing.T) {
 	}
 	if result.PackagesTotal != 0 {
 		t.Errorf("expected 0 packages, got %d", result.PackagesTotal)
+	}
+}
+
+// readP2Versions decodes a built p2 file, asserting packages[name] is the list
+// form Composer documents for metadata-url, and returns the entries keyed by
+// version for convenient lookups.
+func readP2Versions(t *testing.T, buildDir, composerName, suffix string) map[string]map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(buildDir, "p2", composerName+suffix+".json"))
+	if err != nil {
+		t.Fatalf("reading p2 file: %v", err)
+	}
+	var payload struct {
+		Packages map[string][]map[string]any `json:"packages"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("decoding p2 file: %v", err)
+	}
+	byVersion := make(map[string]map[string]any)
+	for _, e := range payload.Packages[composerName] {
+		byVersion[e["version"].(string)] = e
+	}
+	return byVersion
+}
+
+// TestBuildMatchesSerializePackage guards against the two p2 writers drifting
+// apart: the local build (deploy/rollback) and SerializePackage (HTTP handler,
+// DB-driven sync) must emit identical bytes for the same package row.
+func TestBuildMatchesSerializePackage(t *testing.T) {
+	database := setupTestDB(t)
+
+	const pluginVersions = `{"1.0":"https://downloads.wordpress.org/plugin/akismet.1.0.zip","1.0.0":"https://downloads.wordpress.org/plugin/akismet.1.0.0.zip","10.0":"https://downloads.wordpress.org/plugin/akismet.10.0.zip","2.0-beta1":"https://downloads.wordpress.org/plugin/akismet.2.0-beta1.zip","2.0":"https://downloads.wordpress.org/plugin/akismet.2.0.zip"}`
+	const pluginTimes = `{"1.0":"2024-01-01T00:00:00Z","10.0":"2026-01-01T00:00:00Z","2.0":"2025-01-01T00:00:00Z"}`
+	const themeVersions = `{"1.2":"https://downloads.wordpress.org/theme/astra.1.2.zip","1.10":"https://downloads.wordpress.org/theme/astra.1.10.zip"}`
+	const lastCommitted = "2026-10-12T00:00:00Z"
+
+	_, _ = database.Exec(`INSERT INTO packages (type, name, display_name, description, author, homepage, versions_json, is_active, last_committed, trunk_revision, published_times_json, last_sync_run_id, created_at, updated_at)
+		VALUES ('plugin', 'akismet', 'Akismet', 'Spam protection', 'Automattic', 'https://akismet.com', ?, 1, ?, 3470087, ?, 1, datetime('now'), datetime('now'))`,
+		pluginVersions, lastCommitted, pluginTimes)
+	_, _ = database.Exec(`INSERT INTO packages (type, name, display_name, versions_json, is_active, last_sync_run_id, created_at, updated_at)
+		VALUES ('theme', 'astra', 'Astra', ?, 1, 1, datetime('now'), datetime('now'))`, themeVersions)
+
+	result, err := Build(context.Background(), database, BuildOpts{
+		OutputDir: t.TempDir(),
+		Logger:    slog.Default(),
+	})
+	if err != nil {
+		t.Fatalf("build failed: %v", err)
+	}
+
+	pluginMeta := PackageMeta{
+		Description:    "Spam protection",
+		Homepage:       "https://akismet.com",
+		Author:         "Automattic",
+		LastUpdated:    lastCommitted,
+		TrunkRevision:  new(int64(3470087)),
+		PublishedTimes: composer.ParsePublishedTimes(new(pluginTimes)),
+	}
+
+	cases := []struct {
+		file, pkgType, name, versions string
+		meta                          PackageMeta
+	}{
+		{"p2/wp-plugin/akismet.json", "plugin", "akismet", pluginVersions, pluginMeta},
+		{"p2/wp-plugin/akismet~dev.json", "plugin", "akismet~dev", pluginVersions, pluginMeta},
+		{"p2/wp-theme/astra.json", "theme", "astra", themeVersions, PackageMeta{}},
+	}
+	for _, c := range cases {
+		built, err := os.ReadFile(filepath.Join(result.BuildDir, c.file))
+		if err != nil {
+			t.Fatalf("reading %s: %v", c.file, err)
+		}
+		serialized, err := composer.SerializePackage(c.pkgType, c.name, c.versions, c.meta)
+		if err != nil {
+			t.Fatalf("serializing %s: %v", c.name, err)
+		}
+		if !bytes.Equal(built, serialized) {
+			t.Errorf("%s: build output differs from SerializePackage\nbuild:     %s\nserialize: %s", c.file, built, serialized)
+		}
 	}
 }

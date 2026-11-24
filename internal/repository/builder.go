@@ -170,7 +170,7 @@ func Build(ctx context.Context, db *sql.DB, opts BuildOpts) (*BuildResult, error
 		meta.PublishedTimes = composer.ParsePublishedTimes(publishedTimesJSON)
 
 		// Split versions into tagged (for .json) and build all entries
-		taggedVersions := make(map[string]any)
+		taggedVersions := make(map[string]composer.VersionEntry)
 		for ver, dlURL := range versions {
 			if !strings.HasPrefix(ver, "dev-") {
 				taggedVersions[ver] = ComposerVersion(pkgType, name, ver, dlURL, meta)
@@ -179,9 +179,9 @@ func Build(ctx context.Context, db *sql.DB, opts BuildOpts) (*BuildResult, error
 
 		// Plugins get a ~dev.json with dev-trunk pointing to SVN trunk.
 		// Themes don't have trunk in SVN so they only get tagged versions.
-		var devVersions map[string]any
+		var devVersions map[string]composer.VersionEntry
 		if pkgType == "plugin" {
-			devVersions = map[string]any{
+			devVersions = map[string]composer.VersionEntry{
 				"dev-trunk": ComposerVersion(pkgType, name, "dev-trunk", "", meta),
 			}
 		}
@@ -201,7 +201,7 @@ func Build(ctx context.Context, db *sql.DB, opts BuildOpts) (*BuildResult, error
 		totalPkgs++
 		pkgPayload := map[string]any{
 			"packages": map[string]any{
-				composerName: mainVersions,
+				composerName: composer.VersionList(mainVersions),
 			},
 		}
 		_, data, err := HashJSON(pkgPayload)
@@ -229,7 +229,7 @@ func Build(ctx context.Context, db *sql.DB, opts BuildOpts) (*BuildResult, error
 		if devVersions != nil {
 			devPayload := map[string]any{
 				"packages": map[string]any{
-					composerName: devVersions,
+					composerName: composer.VersionList(devVersions),
 				},
 			}
 			_, devData, err := HashJSON(devPayload)

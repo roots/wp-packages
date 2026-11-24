@@ -130,8 +130,8 @@ func TestDBDrivenSync(t *testing.T) {
 	if !ok {
 		t.Fatalf("p2 file missing 'packages' key")
 	}
-	if _, ok := pkgsField["wp-plugin/akismet"]; !ok {
-		t.Error("p2 file missing wp-plugin/akismet entry")
+	if versions, ok := pkgsField["wp-plugin/akismet"].([]any); !ok || len(versions) == 0 {
+		t.Errorf("p2 wp-plugin/akismet should be a non-empty list of versions, got %T", pkgsField["wp-plugin/akismet"])
 	}
 
 	// Verify ~dev.json exists for plugins
