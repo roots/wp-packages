@@ -11,8 +11,6 @@ import (
 	"github.com/roots/wp-packages/internal/composer"
 )
 
-func strPtr(s string) *string { return &s }
-
 func decodeTimes(t *testing.T, s *string) map[string]string {
 	t.Helper()
 	if s == nil {
@@ -76,7 +74,7 @@ func TestMergePublishedTimes(t *testing.T) {
 	})
 
 	t.Run("invalid stored JSON re-stamps every version", func(t *testing.T) {
-		got, err := MergePublishedTimes(`{"1.0":"a","2.0":"b"}`, `{"1.0":"a"}`, strPtr("nope"), now)
+		got, err := MergePublishedTimes(`{"1.0":"a","2.0":"b"}`, `{"1.0":"a"}`, new("nope"), now)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -116,12 +114,12 @@ func TestResetPublishedTimes(t *testing.T) {
 	future := "2026-10-14T00:00:00Z"
 
 	insertTimesPackage(t, database, "plugin", "akismet", `{"1.0":"a","2.0":"b"}`,
-		strPtr(`{"1.0":"`+old+`","2.0":"`+old+`","3.0":"`+future+`"}`), nil)
+		new(`{"1.0":"`+old+`","2.0":"`+old+`","3.0":"`+future+`"}`), nil)
 	insertTimesPackage(t, database, "plugin", "unbackfilled", `{"1.0":"a"}`, nil, nil)
-	insertTimesPackage(t, database, "plugin", "corrupt", `{"1.0":"a"}`, strPtr("not json"), nil)
+	insertTimesPackage(t, database, "plugin", "corrupt", `{"1.0":"a"}`, new("not json"), nil)
 	// Stored before Normalize was idempotent.
-	insertTimesPackage(t, database, "plugin", "spaced", `{" 2.1":"a"}`, strPtr(`{" 2.1":"`+old+`"}`), nil)
-	insertTimesPackage(t, database, "theme", "akismet", `{"1.0":"a"}`, strPtr(`{"1.0":"`+old+`"}`), nil)
+	insertTimesPackage(t, database, "plugin", "spaced", `{" 2.1":"a"}`, new(`{" 2.1":"`+old+`"}`), nil)
+	insertTimesPackage(t, database, "theme", "akismet", `{"1.0":"a"}`, new(`{"1.0":"`+old+`"}`), nil)
 
 	commit := time.Date(2026, 10, 13, 11, 0, 0, 0, time.UTC)
 	n, err := ResetPublishedTimes(ctx, database, "plugin", map[string]map[string]time.Time{
@@ -168,8 +166,8 @@ func TestResetPublishedTimesAllTags(t *testing.T) {
 
 	// 0.9 is no longer listed but still has a time; it's reset too.
 	insertTimesPackage(t, database, "plugin", "evil", `{"1.0":"a","2.0":"b"}`,
-		strPtr(`{"0.9":"`+old+`","1.0":"`+old+`","2.0":"`+old+`"}`), nil)
-	insertTimesPackage(t, database, "plugin", "bystander", `{"1.0":"a"}`, strPtr(`{"1.0":"`+old+`"}`), nil)
+		new(`{"0.9":"`+old+`","1.0":"`+old+`","2.0":"`+old+`"}`), nil)
+	insertTimesPackage(t, database, "plugin", "bystander", `{"1.0":"a"}`, new(`{"1.0":"`+old+`"}`), nil)
 
 	n, err := ResetPublishedTimes(ctx, database, "plugin", nil, map[string]time.Time{"evil": now, "missing": now}, now)
 	if err != nil {
@@ -196,9 +194,9 @@ func TestBackfillPublishedTimes(t *testing.T) {
 	tagged := time.Date(2026, 10, 10, 8, 30, 0, 0, time.UTC)
 
 	versions := `{"1.0":"a","2.0":"b","dev-trunk":""}`
-	insertTimesPackage(t, database, "plugin", "synced", versions, nil, strPtr("oldhash"))
+	insertTimesPackage(t, database, "plugin", "synced", versions, nil, new("oldhash"))
 	insertTimesPackage(t, database, "plugin", "shell", "{}", nil, nil)
-	insertTimesPackage(t, database, "plugin", "done", `{"1.0":"a"}`, strPtr(`{"1.0":"2026-10-01T00:00:00Z"}`), strPtr("keep"))
+	insertTimesPackage(t, database, "plugin", "done", `{"1.0":"a"}`, new(`{"1.0":"2026-10-01T00:00:00Z"}`), new("keep"))
 	insertTimesPackage(t, database, "theme", "synced", `{"1.0":"a"}`, nil, nil)
 
 	n, err := BackfillPublishedTimes(ctx, database, "plugin", map[string]map[string]time.Time{
@@ -279,7 +277,7 @@ func TestUpsertPackageKeepsPublishedTimesWhenUnset(t *testing.T) {
 	ctx := context.Background()
 
 	pkg := &Package{Type: "plugin", Name: "akismet", VersionsJSON: `{"1.0":"a"}`, IsActive: true,
-		PublishedTimesJSON: strPtr(`{"1.0":"2026-01-01T00:00:00Z"}`)}
+		PublishedTimesJSON: new(`{"1.0":"2026-01-01T00:00:00Z"}`)}
 	if err := UpsertPackage(ctx, database, pkg); err != nil {
 		t.Fatal(err)
 	}

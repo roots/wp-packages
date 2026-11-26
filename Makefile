@@ -52,10 +52,11 @@ test:
 integration:
 	go test -tags=integration -count=1 -timeout=5m -v ./internal/integration/...
 
-# Lint (matches CI: golangci-lint + go mod tidy)
+# Lint (matches CI: golangci-lint + go mod tidy + go fix)
 lint:
 	$(shell go env GOPATH)/bin/golangci-lint run ./...
 	go mod tidy -diff
+	go fix -diff -tags=integration,wporg_live ./...
 
 # Create Ansible virtualenv if missing
 venv:
